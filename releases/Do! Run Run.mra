@@ -1,0 +1,75 @@
+<misterromdescription>
+    <name>Do! Run Run</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Do! Run Run</series>
+    <year>1984</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Maze</category>
+
+    <setname>dorunrun</setname>
+    <parent>dorunrun</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>horizontal</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>2</num_buttons>
+    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="FF,DF,FF">
+        <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Difficulty" bits="8,9" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Difficulty of EXTRA" bits="12" ids="Easy,Difficult" values="1,0"/>
+        <dip name="Cabinet" bits="13" ids="Upright,Cocktail"/>
+        <dip name="Demo Sounds" bits="10" ids="Off,On"/>
+        <dip name="Flip Screen" bits="11" ids="Off,On" values="1,0"/>
+        <dip name="Special" bits="14" ids="Given,Not Given" values="1,0"/>
+        <dip name="Lives" bits="15" ids="3,5" values="1,0"/>
+        <dip name="Coin B" bits="16,19" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+        <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="dorunrun.zip">
+        <part repeat="0x20000">00</part>
+        <part crc="95c86f8e" name="2764.p1"/>
+        <part repeat="0x2000">00</part>
+        <part crc="e9a65ba7" name="2764.l1"/>
+        <part crc="b1195d3d" name="2764.k1"/>
+        <part crc="6a8160d1" name="2764.n1"/>
+        <part repeat="0x6000">00</part>
+        <part crc="8b06d461" name="27128.p7"/>
+        <part crc="4be96dcf" name="27128.a3"/>
+        <part repeat="0x4000">00</part>
+        <part crc="d5bab5d5" name="dorunrun.clr"/>
+        <part repeat="0x3F00">00</part>
+        <part crc="4bb231a0" name="2764.m4"/>
+        <part crc="0c08508a" name="2764.l4"/>
+        <part crc="79287039" name="2764.j4"/>
+        <part crc="523aa999" name="2764.h4"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            08 01 00 00 FF FF FF DF FF FF 80 80 00 01 02 80
+            04 01 03 02 0C 09 0B 0A 05 06 00 13 0D 0E 00 14
+            15 16 16 00 12 11 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Do! Run Run (Set 1) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

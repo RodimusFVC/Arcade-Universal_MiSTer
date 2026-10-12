@@ -1,0 +1,73 @@
+<misterromdescription>
+    <name>Mr. Do's Castle</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Mr. Do's Castle</series>
+    <year>1983</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Platform</category>
+
+    <setname>docastle</setname>
+    <parent>docastle</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>2</num_buttons>
+    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="FF,DF,FF">
+        <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Difficulty" bits="8,9" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Rack Test" bits="10" ids="Off,On" values="1,0"/>
+        <dip name="Bonus Credit for Diamond" bits="11" ids="No,Yes"/>
+        <dip name="Difficulty of EXTRA" bits="12" ids="Easy,Difficult" values="1,0"/>
+        <dip name="Cabinet" bits="13" ids="Upright,Cocktail"/>
+        <dip name="Lives" bits="14,15" ids="2,3,4,5" values="0,3,2,1"/>
+        <dip name="Coin B" bits="16,19" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+        <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="docastle.zip">
+        <part repeat="0x20000">00</part>
+        <part crc="17c6fc24" name="01p_a1.bin"/>
+        <part crc="1d2fc7f4" name="01n_a2.bin"/>
+        <part crc="71a70ba9" name="01l_a3.bin"/>
+        <part crc="479a745e" name="01k_a4.bin"/>
+        <part repeat="0x8000">00</part>
+        <part crc="f23b5cdb" name="07n_a0.bin"/>
+        <part crc="0636b8f4" name="03a_a5.bin"/>
+        <part repeat="0x4000">00</part>
+        <part crc="066f52bc" name="09c.bin"/>
+        <part repeat="0x3E00">00</part>
+        <part crc="3bbc9b26" name="04m_a6.bin"/>
+        <part crc="3dfaa9d1" name="04l_a7.bin"/>
+        <part crc="9afb16e9" name="04j_a8.bin"/>
+        <part crc="af24bce0" name="04h_a9.bin"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            07 11 00 00 FF FF FF DF FF FF 80 80 00 01 02 80
+            04 01 03 02 0C 09 0B 0A 05 06 00 13 0D 0E 00 14
+            15 16 16 00 12 11 00 00 00 00 24 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Mr. Do's Castle (Set 1) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

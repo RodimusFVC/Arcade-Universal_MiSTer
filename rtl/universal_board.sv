@@ -10,6 +10,8 @@
 //  Variant 4: Mr. Do! with the Taito PAL (mrdot, mrdofix, mrdu, mrdofabr)
 //  Variant 5: Mr. Lo! (no PAL)
 //  Variant 6: Mr. Do! bootleg (mrdobl: 4.0 MHz CPU, PAL with feedback)
+//  Variant 7: Mr. Do's Castle board, docastle_state map (docastle, Do! Run Run on Castle hardware, runrun)
+//  Variant 8: Mr. Do's Castle board, dorunrun_state map (dorunrun, spiero, dowild, jjack, kickridr)
 //
 //  ioctl index 0 (MRA), images stored as dumped, MAME region order:
 //    0x00000 - 0x05FFF  maincpu
@@ -21,6 +23,9 @@
 //    0x10000 - 0x15FFF  sub    (8203 sound / control CPU)
 //    0x18000 - 0x18FFF  gfx3   (Space Raider fixed grid)
 //    0x18000 - 0x19FFF  gfx3   (Mr. Do! sprites; gfx1 / gfx2 = fg / bg tiles, proms 0xC000-0xC07F)
+//  Mr. Do's Castle board:
+//    0x20000 - 0x29FFF  maincpu    0x30000 - 0x33FFF  subcpu     0x34000 - 0x37FFF  gfx1 (tiles)
+//    0x3C000 - 0x3C0FF  proms      0x40000 - 0x47FFF  gfx2 (sprites)
 //
 //============================================================================
 
@@ -81,6 +86,7 @@ wire load_grid = ioctl_wr0 && ioctl_addr[24:12] == 13'h0018;
 wire board_8203  = (variant == 8'd1) || (variant == 8'd2);
 wire sraider_ovl = (variant == 8'd1);
 wire mrdo        = (variant >= 8'd3) && (variant <= 8'd6);
+wire dcastle     = (variant == 8'd7) || (variant == 8'd8);
 
 logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a;
 logic [11:0] lb_char_a, lb_sprite_a, md_fg_a, md_bg_a;
@@ -178,6 +184,53 @@ generate
     end
 endgenerate
 
+// Mr. Do's Castle ROMs
+logic [15:0] dc_main_a;
+logic  [7:0] dc_main_lo_d, dc_main_hi_d;
+logic [13:0] dc_sub_a;
+logic  [7:0] dc_sub_d;
+logic [11:0] dc_tile_a, dc_spr_a;
+logic [31:0] dc_tile_d;
+logic [63:0] dc_spr_d;
+wire load_dc_mlo  = ioctl_wr0 && ioctl_addr[24:15] == 10'h004;   // 0x20000-0x27FFF
+wire load_dc_mhi  = ioctl_wr0 && ioctl_addr[24:13] == 12'h014;   // 0x28000-0x29FFF
+wire load_dc_sub  = ioctl_wr0 && ioctl_addr[24:14] == 11'h00C;   // 0x30000-0x33FFF
+wire load_dc_tile = ioctl_wr0 && ioctl_addr[24:14] == 11'h00D;   // 0x34000-0x37FFF
+wire load_dc_prom = ioctl_wr0 && ioctl_addr[24:8]  == 17'h003C0; // 0x3C000-0x3C0FF
+wire load_dc_spr  = ioctl_wr0 && ioctl_addr[24:15] == 10'h008;   // 0x40000-0x47FFF
+
+dpram_dc #(.widthad_a(15)) dc_main_lo
+(
+    .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_dc_mlo),
+    .clock_b(clk), .address_b(dc_main_a[14:0]), .q_b(dc_main_lo_d)
+);
+dpram_dc #(.widthad_a(13)) dc_main_hi
+(
+    .clock_a(clk), .address_a(ioctl_addr[12:0]), .data_a(ioctl_dout), .wren_a(load_dc_mhi),
+    .clock_b(clk), .address_b(dc_main_a[12:0]), .q_b(dc_main_hi_d)
+);
+dpram_dc #(.widthad_a(14)) dc_sub
+(
+    .clock_a(clk), .address_a(ioctl_addr[13:0]), .data_a(ioctl_dout), .wren_a(load_dc_sub),
+    .clock_b(clk), .address_b(dc_sub_a), .q_b(dc_sub_d)
+);
+generate
+    for (ln = 0; ln < 4; ln++) begin : dctile
+        dpram_dc #(.widthad_a(12)) rom
+        (
+            .clock_a(clk), .address_a(ioctl_addr[13:2]), .data_a(ioctl_dout), .wren_a(load_dc_tile && ioctl_addr[1:0] == ln),
+            .clock_b(clk), .address_b(dc_tile_a), .q_b(dc_tile_d[ln*8 +: 8])
+        );
+    end
+    for (ln = 0; ln < 8; ln++) begin : dcspr
+        dpram_dc #(.widthad_a(12)) rom
+        (
+            .clock_a(clk), .address_a(ioctl_addr[14:3]), .data_a(ioctl_dout), .wren_a(load_dc_spr && ioctl_addr[2:0] == ln),
+            .clock_b(clk), .address_b(dc_spr_a), .q_b(dc_spr_d[ln*8 +: 8])
+        );
+    end
+endgenerate
+
 // Colour PROMs live in the video unit
 wire prom_k1_wr = load_prom && ioctl_addr[6:5] == 2'd0;
 wire prom_f4_wr = load_prom && ioctl_addr[6:5] == 2'd1;
@@ -197,7 +250,7 @@ logic       ov_hbl, ov_vbl, fb_hbl, fb_vbl;
 ladybug_machine ladybug
 (
     .clk_20mhz_i     (clk),
-    .ext_res_n_i     (~reset & ~mrdo),
+    .ext_res_n_i     (~reset & ~mrdo & ~dcastle),
     .pause_i         (pause),
     .decrypt_en_i    (rom_dec == 4'd1),
     .p2_follows_p1_i (game_flags2[0]),
@@ -375,17 +428,64 @@ mrdo_board mrdo_b
     .hs_write     (hs_write & mrdo)
 );
 
+/////////////////////////////  Mr. Do's Castle  /////////////////////////////
+
+logic        dc_ce, dc_hs, dc_vs, dc_hbl, dc_vbl;
+logic  [7:0] dc_r, dc_g, dc_b, dc_hs_data;
+logic signed [15:0] dc_audio;
+
+docastle_board docastle_b
+(
+    .clk          (clk),
+    .reset        (reset | ~dcastle),
+    .pause        (pause),
+    .map_mode     (variant == 8'd8),
+    .pri_low      (variant == 8'd8),
+    .crt_flip     (crt_flip),
+    .joys         (in0),
+    .buttons      (in1),
+    .system       (in2),
+    .dsw1         (dsw0),
+    .dsw2         (dsw1),
+    .h_adj        (h_adj),
+    .v_adj        (v_adj),
+    .ce_pix       (dc_ce),
+    .video_r      (dc_r),
+    .video_g      (dc_g),
+    .video_b      (dc_b),
+    .video_hs     (dc_hs),
+    .video_vs     (dc_vs),
+    .video_hblank (dc_hbl),
+    .video_vblank (dc_vbl),
+    .audio        (dc_audio),
+    .rom_main_a   (dc_main_a),
+    .rom_main_d   (dc_main_a[15] ? dc_main_hi_d : dc_main_lo_d),
+    .rom_sub_a    (dc_sub_a),
+    .rom_sub_d    (dc_sub_d),
+    .rom_tile_a   (dc_tile_a),
+    .rom_tile_d   (dc_tile_d),
+    .rom_spr_a    (dc_spr_a),
+    .rom_spr_d    (dc_spr_d),
+    .prom_wr      (load_dc_prom),
+    .prom_a       (ioctl_addr[7:0]),
+    .prom_d       (ioctl_dout),
+    .hs_address   (hs_address[12:0]),
+    .hs_data_out  (dc_hs_data),
+    .hs_data_in   (hs_data_in),
+    .hs_write     (hs_write & dcastle)
+);
+
 /////////////////////////////  output select  /////////////////////////////
 
-assign ce_pix       = mrdo ? md_ce    : lb_ce;
-assign video_r      = mrdo ? md_r     : lb_rgb[23:16];
-assign video_g      = mrdo ? md_g     : lb_rgb[15:8];
-assign video_b      = mrdo ? md_b     : lb_rgb[7:0];
-assign video_hblank = mrdo ? md_hbl   : fb_hbl;
-assign video_vblank = mrdo ? md_vbl   : fb_vbl;
-assign video_hs     = mrdo ? md_hs    : lb_hs;
-assign video_vs     = mrdo ? md_vs    : lb_vs;
-assign audio        = mrdo ? md_audio : lb_audio;
-assign hs_data_out  = mrdo ? md_hs_data : lb_hs_data;
+assign ce_pix       = dcastle ? dc_ce    : mrdo ? md_ce    : lb_ce;
+assign video_r      = dcastle ? dc_r     : mrdo ? md_r     : lb_rgb[23:16];
+assign video_g      = dcastle ? dc_g     : mrdo ? md_g     : lb_rgb[15:8];
+assign video_b      = dcastle ? dc_b     : mrdo ? md_b     : lb_rgb[7:0];
+assign video_hblank = dcastle ? dc_hbl   : mrdo ? md_hbl   : fb_hbl;
+assign video_vblank = dcastle ? dc_vbl   : mrdo ? md_vbl   : fb_vbl;
+assign video_hs     = dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
+assign video_vs     = dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
+assign audio        = dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
+assign hs_data_out  = dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
 
 endmodule

@@ -1,0 +1,74 @@
+<misterromdescription>
+    <name>Jumping Jack</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Jumping Jack</series>
+    <year>1984</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Platform</category>
+
+    <setname>jjack</setname>
+    <parent>jjack</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>2</num_buttons>
+    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="FF,DF,FF">
+        <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Rack Test" bits="10" ids="Off,On" values="1,0"/>
+        <dip name="Cabinet" bits="13" ids="Upright,Cocktail"/>
+        <dip name="Lives" bits="14,15" ids="2,3,4,5" values="0,3,2,1"/>
+        <dip name="Difficulty?" bits="8,9" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Flip Screen" bits="11" ids="Off,On" values="1,0"/>
+        <dip name="Extra?" bits="12" ids="Easy,Hard" values="1,0"/>
+        <dip name="Coin B" bits="16,19" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+        <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="jjack.zip">
+        <part repeat="0x20000">00</part>
+        <part crc="87f29bd2" name="j1.bin"/>
+        <part repeat="0x2000">00</part>
+        <part crc="35b0517e" name="j3.bin"/>
+        <part crc="35bb316a" name="j4.bin"/>
+        <part crc="dec52e80" name="j2.bin"/>
+        <part repeat="0x6000">00</part>
+        <part crc="ab042f04" name="j0.bin"/>
+        <part crc="75038ff9" name="j5.bin"/>
+        <part repeat="0x4000">00</part>
+        <part crc="2f0955f2" name="bprom1.bin"/>
+        <part repeat="0x3E00">00</part>
+        <part crc="5937bd7b" name="j6.bin"/>
+        <part crc="cf8ae8e7" name="j7.bin"/>
+        <part crc="84f6fc8c" name="j8.bin"/>
+        <part crc="3f9bb09f" name="j9.bin"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            08 11 00 00 FF FF FF DF FF FF 80 80 00 01 02 80
+            04 01 03 02 0C 09 0B 0A 05 06 00 13 0D 0E 00 14
+            15 16 16 00 12 11 00 00 00 00 24 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Jumping Jack (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

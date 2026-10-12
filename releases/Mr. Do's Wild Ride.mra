@@ -1,0 +1,75 @@
+<misterromdescription>
+    <name>Mr. Do's Wild Ride</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Mr. Do's Wild Ride</series>
+    <year>1984</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Platform</category>
+
+    <setname>dowild</setname>
+    <parent>dowild</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>horizontal</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>2</num_buttons>
+    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="FF,DF,FF">
+        <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Difficulty" bits="8,9" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Rack Test" bits="10" ids="Off,On" values="1,0"/>
+        <dip name="Difficulty of EXTRA" bits="12" ids="Easy,Difficult" values="1,0"/>
+        <dip name="Cabinet" bits="13" ids="Upright,Cocktail"/>
+        <dip name="Flip Screen" bits="11" ids="Off,On" values="1,0"/>
+        <dip name="Special" bits="14" ids="Given,Not Given" values="1,0"/>
+        <dip name="Lives" bits="15" ids="3,5" values="1,0"/>
+        <dip name="Coin B" bits="16,19" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+        <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="dowild.zip">
+        <part repeat="0x20000">00</part>
+        <part crc="097de78b" name="w1"/>
+        <part repeat="0x2000">00</part>
+        <part crc="fc6a1cbb" name="w3"/>
+        <part crc="8aac1d30" name="w4"/>
+        <part crc="0914ab69" name="w2"/>
+        <part repeat="0x6000">00</part>
+        <part crc="d1f37fba" name="w10"/>
+        <part crc="b294b151" name="w5"/>
+        <part repeat="0x4000">00</part>
+        <part crc="a703dea5" name="dowild.clr"/>
+        <part repeat="0x3F00">00</part>
+        <part crc="57e0208b" name="w6"/>
+        <part crc="5001a6f7" name="w7"/>
+        <part crc="ec503251" name="w8"/>
+        <part crc="af7bd7eb" name="w9"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            08 01 00 00 FF FF FF DF FF FF 80 80 00 01 02 80
+            04 01 03 02 0C 09 0B 0A 05 06 00 13 0D 0E 00 14
+            15 16 16 00 12 11 00 00 00 00 24 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Mr. Do's Wild Ride (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

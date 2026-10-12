@@ -40,7 +40,10 @@ REGIONS = {
 }
 
 # machine -> {region: (ioctl index, base, size) or None to drop}; index 2 is written to SDRAM
-REGION_OVERRIDE = {}
+# Mr. Do's Castle board: own area of index 0 (the sprite CPU's pass-through PROM is not used)
+REGION_OVERRIDE = {m: {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x30000, 0x04000), "spritecpu": None,
+                 "gfx1": (0, 0x34000, 0x04000), "proms": (0, 0x3C000, 0x00200), "gfx2": (0, 0x40000, 0x08000)}
+                   for m in ("docastle", "dorunrun")}
 
 IGNORED_REGIONS = {"pal16r6"}                       # Mr. Do! U001: modelled in rtl/mrdo/mrdo_board.sv
 
@@ -52,6 +55,8 @@ SUPPORTED = {
     ("mrsdyna", "empty_init"): 2,
     ("mrdo", "empty_init"): 3,
     ("mrdobl", "empty_init"): 6,
+    ("docastle", "empty_init"): 7,
+    ("dorunrun", "empty_init"): 8,
 }
 
 # init -> (index 1 byte 2 CPU ROM decode, unused)
@@ -65,12 +70,13 @@ F2_P2_FOLLOWS_P1 = 0x01
 CUSTOM_PORTS = {"ladybug_p1_control_r": "CONTP1", "ladybug_p2_control_r": "CONTP2"}
 
 # MAME state class -> board variant override (same machine config, different protection PAL)
-STATE_VARIANT = {"mrdot_state": 4, "mrlo_state": 5}
+STATE_VARIANT = {"mrdot_state": 4, "mrlo_state": 5, "dorunrun_state": 8}
 # port order on the board: index 1 idle bytes 4-9, DIP selectors 10-15, input map bytes 16-63.
 # Only ports carrying DIPs go in <switches> (bytes 0.., in port order): Main_MiSTer builds the default with
 # 32-bit int shifts (mra_loader.cpp: binary[i] << (i * 8)), so only bytes 0-2 (and a byte 3 < 0x80) survive.
 PORTS = [("IN0",), ("IN1",), ("IN2",), ("DSW0",), ("DSW1",), ("COIN",)]   # first name present wins
-PORTS_BY_MACHINE = {m: [("P1",), ("P2",), ("IN2",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("mrdo", "mrdobl")}
+PORTS_BY_MACHINE = {**{m: [("P1",), ("P2",), ("IN2",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("mrdo", "mrdobl")},
+                    **{m: [("JOYS",), ("BUTTONS",), ("SYSTEM",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("docastle", "dorunrun")}}
 
 # control ids (Arcade-Universal.sv)
 CTL = {("JOYSTICK_UP", 1): 1, ("JOYSTICK_DOWN", 1): 2, ("JOYSTICK_LEFT", 1): 3, ("JOYSTICK_RIGHT", 1): 4,
@@ -88,7 +94,9 @@ RACK_HOLD, RACK_TOGGLE = 36, 37                     # Rack Test cheat button (no
 SERIES_BY_PARENT = {"ladybug": ("Lady Bug", "Maze"), "snapjack": ("Snap Jack", "Maze"),
                     "cavenger": ("Cosmic Avenger", "Shooter"), "dorodon": ("Dorodon", "Maze"),
                     "sraider": ("Space Raider", "Shooter"), "mrsdyna": ("Mrs. Dynamite", "Maze"),
-                    "mrdo": ("Mr. Do!", "Maze")}
+                    "mrdo": ("Mr. Do!", "Maze"), "docastle": ("Mr. Do's Castle", "Platform"),
+                    "dorunrun": ("Do! Run Run", "Maze"), "dowild": ("Mr. Do's Wild Ride", "Platform"),
+                    "jjack": ("Jumping Jack", "Platform"), "kickridr": ("Kick Rider", "Sports")}
 REGION_WORDS = [("US", "US"), ("Japan", "Japan"), ("Spanish", "Spain"), ("Italian", "Italy"), ("French", "France"),
                 ("Brazil", "Brazil"), ("Argentina", "Argentina"), ("Greek", "Greece"), ("Hungarian", "Hungary")]
 
