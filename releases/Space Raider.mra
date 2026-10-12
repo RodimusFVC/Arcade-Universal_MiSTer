@@ -1,0 +1,74 @@
+<misterromdescription>
+    <name>Space Raider</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Space Raider</series>
+    <year>1982</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Shooter</category>
+
+    <setname>sraider</setname>
+    <parent>sraider</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="DF,FF">
+        <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="High Score Names" bits="2" ids="3 Letters,10 Letters"/>
+        <dip name="Allow Continue" bits="3" ids="No,Yes" values="1,0"/>
+        <dip name="Unknown" bits="4" ids="Off,On" values="1,0"/>
+        <dip name="Cabinet" bits="5" ids="Upright,Cocktail"/>
+        <dip name="Lives" bits="6,7" ids="2,3,4,5" values="0,3,2,1"/>
+        <dip name="Coin A" bits="8,11" ids="4C/1C,3C/1C,2C/1C,3C/2C,2C/2C,1C/1C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,9,15,14,13,12,11,0"/>
+        <dip name="Coin B" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,2C/2C,1C/1C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,9,15,14,13,12,11,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="sraider.zip">
+        <part crc="0f389774" name="sraid3.r4"/>
+        <part crc="38a48db0" name="sraid2.n4"/>
+        <part crc="2f302a4e" name="sraid1.m4"/>
+        <part repeat="0x2000">00</part>
+        <part crc="a0373909" name="sraid-s0.k6"/>
+        <part crc="ba22d949" name="sraids11.l6"/>
+        <part crc="299f8e07" name="sraid-s7.m2"/>
+        <part crc="57ba8888" name="sraid-s8.n2"/>
+        <part crc="121fdb99" name="srpr10-1.a2"/>
+        <part crc="88b67e70" name="srpr10-2.l3"/>
+        <part crc="27fa3a50" name="srpr10-3.c1"/>
+        <part repeat="0x3FA0">00</part>
+        <part crc="57173a12" name="sraid-s4.h6"/>
+        <part crc="5a459179" name="sraid-s5.j6"/>
+        <part crc="ea3aa25d" name="sraid-s6.l6"/>
+        <part repeat="0x2000">00</part>
+        <part crc="2380b90f" name="sraid-s9.f6"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            01 11 00 00 FF FF FF DF FF FF 80 80 80 00 01 80
+            03 02 04 01 05 13 14 00 0B 0A 0C 09 0D 00 11 12
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Space Raider (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

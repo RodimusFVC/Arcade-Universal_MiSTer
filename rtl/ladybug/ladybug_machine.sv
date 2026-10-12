@@ -8,6 +8,10 @@
 //  IN0 9000, IN1 9001 (bits 7-5 from the video timing), DSW0 9002, DSW1 9003,
 //  IN2 E000 (bits 1-0); coin 1 -> NMI chute, coin 2 -> IRQ chute.
 //
+//  board_8203_i: Universal 8203-A/B (Space Raider, Mrs. Dynamite, MAME sraider.cpp):
+//  same video, main CPU I/O at 8000, a second Z80 with five SN76489, and the
+//  palette PROM wired to the DACs differently (mrsdyna_palette).
+//
 //============================================================================
 
 module ladybug_machine
@@ -17,6 +21,7 @@ module ladybug_machine
     input  logic               pause_i,
     input  logic               decrypt_en_i,
     input  logic               p2_follows_p1_i, // MAME ladybug_p2_control_r: upright cabinet reads P1 controls for P2
+    input  logic               board_8203_i,
 
     input  logic         [7:0] in0_i,
     input  logic         [7:0] in1_i,
@@ -30,6 +35,11 @@ module ladybug_machine
     output logic         [1:0] rgb_r_o,
     output logic         [1:0] rgb_g_o,
     output logic         [1:0] rgb_b_o,
+    output logic               bg_o,            // background pixel (8203 overlay)
+    output logic         [7:0] ctrl_o,          // 8203 sub CPU control latch
+    output logic               grid_wr_o,
+    output logic         [7:0] grid_a_o,
+    output logic         [7:0] grid_d_o,
     output logic               hsync_n_o,
     output logic               vsync_n_o,
     output logic               hblank_o,
@@ -44,6 +54,8 @@ module ladybug_machine
     input  logic        [15:0] rom_char_d_i,
     output logic        [11:0] rom_sprite_a_o,
     input  logic        [15:0] rom_sprite_d_i,
+    output logic        [14:0] rom_sub_a_o,
+    input  logic         [7:0] rom_sub_d_i,
 
     input  logic         [4:0] prom_a_i,
     input  logic         [7:0] prom_d_i,
@@ -68,6 +80,10 @@ logic        cs7_n_s, cs10_n_s, cs11_n_s, cs12_n_s, cs13_n_s;
 logic        vc_s, vbl_tick_n_s, vbl_buf_s;
 logic  [7:0] gpio_in0_s, gpio_in1_s, gpio_extra_s;
 logic        hs_cs_cpu, hs_cs_vram;
+logic  [7:0] snd_latch_lo_s, snd_latch_hi_s;
+logic  [8:1] rgb_n_s;
+logic  [1:0] lb_r_s, lb_g_s, lb_b_s;
+logic signed [15:0] audio_lb_s, audio_sub_s;
 logic  [7:0] hs_data_out_cpu, hs_data_out_vram;
 
 ladybug_clk clk_b
@@ -93,7 +109,8 @@ ladybug_res res_b
 );
 
 assign gpio_in0_s   = in0_i;
-assign gpio_in1_s   = {vbl_buf_s, vbl_tick_n_s, vc_s, p2_follows_p1_i && !dsw0_i[5] ? in0_i[4:0] : in1_i[4:0]};
+assign gpio_in1_s   = board_8203_i ? in1_i :
+                      {vbl_buf_s, vbl_tick_n_s, vc_s, p2_follows_p1_i && !dsw0_i[5] ? in0_i[4:0] : in1_i[4:0]};
 // E000-E003 read bit pairs {extra[7-n], extra[3-n]}; only E000 carries inputs (MAME IN2 bits 1-0)
 assign gpio_extra_s = {in2_i[1], 3'b111, in2_i[0], 3'b111};
 
@@ -109,6 +126,10 @@ ladybug_cpu_unit cpu_b
     .res_n_i        (res_n_s),
     .pause_i        (pause_i),
     .decrypt_en_i   (decrypt_en_i),
+    .board_8203_i   (board_8203_i),
+    .vblank_i       (vbl_buf_s),
+    .snd_latch_lo_o (snd_latch_lo_s),
+    .snd_latch_hi_o (snd_latch_hi_s),
     .rom_cpu_a_o    (rom_cpu_a_o),
     .rom_cpu_d_i    (rom_cpu_d_i),
     .dec_a_o        (dec_a_o),
@@ -162,9 +183,13 @@ ladybug_video_unit video_b
     .vc_o             (vc_s),
     .vbl_tick_n_o     (vbl_tick_n_s),
     .vbl_buf_o        (vbl_buf_s),
-    .rgb_r_o          (rgb_r_o),
-    .rgb_g_o          (rgb_g_o),
-    .rgb_b_o          (rgb_b_o),
+    .rgb_r_o          (lb_r_s),
+    .rgb_g_o          (lb_g_s),
+    .rgb_b_o          (lb_b_s),
+    .rgb_n_o          (rgb_n_s),
+    .bg_o             (bg_o),
+    .flip_ext_en_i    (board_8203_i),
+    .flip_ext_i       (ctrl_o[7]),
     .hsync_n_o        (hsync_n_o),
     .vsync_n_o        (vsync_n_o),
     .comp_sync_n_o    (),
@@ -196,7 +221,33 @@ ladybug_sound_unit sound_b
     .wr_n_i         (wr_n_s),
     .d_from_cpu_i   (d_from_cpu_s),
     .sound_wait_n_o (sound_wait_n_s),
-    .audio_o        (audio_o)
+    .audio_o        (audio_lb_s)
 );
+
+// 8203 palette PROM to DAC wiring (MAME mrsdyna_palette): {220 ohm, 470 ohm} = R {D0, D3}, G {D4, D5}, B {D6, D7}
+assign rgb_r_o = board_8203_i ? {rgb_n_s[1], rgb_n_s[4]} : lb_r_s;
+assign rgb_g_o = board_8203_i ? {rgb_n_s[5], rgb_n_s[6]} : lb_g_s;
+assign rgb_b_o = board_8203_i ? {rgb_n_s[7], rgb_n_s[8]} : lb_b_s;
+
+sraider_sub sub_b
+(
+    .clk      (clk_20mhz_i),
+    .cen_p    (cpu_cen_p_s),
+    .cen_n    (cpu_cen_n_s),
+    .res_n    (res_n_s & board_8203_i),
+    .pause    (pause_i),
+    .vblank   (vbl_buf_s),
+    .latch_lo (snd_latch_lo_s),
+    .latch_hi (snd_latch_hi_s),
+    .rom_a    (rom_sub_a_o),
+    .rom_d    (rom_sub_d_i),
+    .grid_wr  (grid_wr_o),
+    .grid_a   (grid_a_o),
+    .grid_d   (grid_d_o),
+    .ctrl     (ctrl_o),
+    .audio    (audio_sub_s)
+);
+
+assign audio_o = board_8203_i ? audio_sub_s : audio_lb_s;
 
 endmodule

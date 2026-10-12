@@ -64,6 +64,8 @@ module ladybug_char (
   // CPU Interface ------------------------------------------------------------
   input  logic        cs10_n_i,
   input  logic        cs13_n_i,
+  input  logic        flip_ext_en_i,  // Universal: 8203 board, flip from the sound CPU's LS273 (bit 7)
+  input  logic        flip_ext_i,
   input  logic [10:0] a_i,
   input  logic        rd_n_i,
   input  logic        wr_n_i,
@@ -168,7 +170,10 @@ module ladybug_char (
       flip_screen_q <= 1'b0;
     end
     else begin
-      if (a_i[2:0] == 3'b000 && cs10_n_i == 1'b0) begin
+      if (flip_ext_en_i) begin
+        flip_screen_q <= flip_ext_i;
+      end
+      else if (a_i[2:0] == 3'b000 && cs10_n_i == 1'b0) begin
         flip_screen_q <= d_from_cpu_i[0];
       end
     end

@@ -72,6 +72,10 @@ module ladybug_video_unit (
   output logic [1:0]  rgb_r_o,
   output logic [1:0]  rgb_g_o,
   output logic [1:0]  rgb_b_o,
+  output logic [8:1]  rgb_n_o,        // Universal: raw latched PROM byte (inverted)
+  output logic        bg_o,           // Universal: background pixel
+  input  logic        flip_ext_en_i,  // Universal: flip source override (8203 board)
+  input  logic        flip_ext_i,
   output logic        hsync_n_o,
   output logic        vsync_n_o,
   output logic        comp_sync_n_o,
@@ -158,6 +162,8 @@ module ladybug_video_unit (
     .clk_en_4mhz_i (clk_en_4mhz_i),
     .cs10_n_i      (cs10_n_i),
     .cs13_n_i      (cs13_n_i),
+    .flip_ext_en_i (flip_ext_en_i),
+    .flip_ext_i    (flip_ext_i),
     .a_i           (a_i),
     .rd_n_i        (rd_n_i),
     .wr_n_i        (wr_n_i),
@@ -230,6 +236,8 @@ module ladybug_video_unit (
     .rgb_r_o       (rgb_r_o),
     .rgb_g_o       (rgb_g_o),
     .rgb_b_o       (rgb_b_o),
+    .rgb_n_o       (rgb_n_o),
+    .bg_o          (bg_o),
     .prom_wr_i     (prom_k1_wr_i),
     .prom_a_i      (prom_a_i),
     .prom_d_i      (prom_d_i)

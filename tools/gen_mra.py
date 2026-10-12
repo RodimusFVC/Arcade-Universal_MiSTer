@@ -32,20 +32,26 @@ REGIONS = {
     "maincpu":   (0x00000, 0x08000),
     "gfx1":      (0x08000, 0x02000),
     "gfx2":      (0x0A000, 0x02000),
-    "proms":     (0x0C000, 0x00060),
+    "proms":     (0x0C000, 0x00080),
     "user1_nhi": (0x0C100, 0x00100),                # Dorodon bp4 (ROM_LOAD_NIB_HIGH)
     "user1_nlo": (0x0C200, 0x00100),                # Dorodon bp3 (ROM_LOAD_NIB_LOW)
+    "sub":       (0x10000, 0x08000),                # 8203 board second Z80
+    "gfx3":      (0x18000, 0x02000),                # Space Raider fixed grid (4K) / Mr. Do! sprites (8K)
 }
 
 # machine -> {region: (ioctl index, base, size) or None to drop}; index 2 is written to SDRAM
 REGION_OVERRIDE = {}
 
-IGNORED_REGIONS = set()
+IGNORED_REGIONS = {"pal16r6"}                       # Mr. Do! U001: modelled in rtl/mrdo/mrdo_board.sv
 
 # (machine config, init) pairs the board implements, -> board variant byte
 SUPPORTED = {
     ("ladybug", "empty_init"): 0,
     ("dorodon", "init_dorodon"): 0,
+    ("sraider", "empty_init"): 1,
+    ("mrsdyna", "empty_init"): 2,
+    ("mrdo", "empty_init"): 3,
+    ("mrdobl", "empty_init"): 6,
 }
 
 # init -> (index 1 byte 2 CPU ROM decode, unused)
@@ -58,10 +64,13 @@ F2_P2_FOLLOWS_P1 = 0x01
 # PORT_CUSTOM_MEMBER handler -> port whose bits it returns
 CUSTOM_PORTS = {"ladybug_p1_control_r": "CONTP1", "ladybug_p2_control_r": "CONTP2"}
 
+# MAME state class -> board variant override (same machine config, different protection PAL)
+STATE_VARIANT = {"mrdot_state": 4, "mrlo_state": 5}
 # port order on the board: index 1 idle bytes 4-9, DIP selectors 10-15, input map bytes 16-63.
 # Only ports carrying DIPs go in <switches> (bytes 0.., in port order): Main_MiSTer builds the default with
 # 32-bit int shifts (mra_loader.cpp: binary[i] << (i * 8)), so only bytes 0-2 (and a byte 3 < 0x80) survive.
 PORTS = [("IN0",), ("IN1",), ("IN2",), ("DSW0",), ("DSW1",), ("COIN",)]   # first name present wins
+PORTS_BY_MACHINE = {m: [("P1",), ("P2",), ("IN2",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("mrdo", "mrdobl")}
 
 # control ids (Arcade-Universal.sv)
 CTL = {("JOYSTICK_UP", 1): 1, ("JOYSTICK_DOWN", 1): 2, ("JOYSTICK_LEFT", 1): 3, ("JOYSTICK_RIGHT", 1): 4,
@@ -77,13 +86,15 @@ WORKING_HERE = set()
 RACK_HOLD, RACK_TOGGLE = 36, 37                     # Rack Test cheat button (no default pad mapping)
 
 SERIES_BY_PARENT = {"ladybug": ("Lady Bug", "Maze"), "snapjack": ("Snap Jack", "Maze"),
-                    "cavenger": ("Cosmic Avenger", "Shooter"), "dorodon": ("Dorodon", "Maze")}
+                    "cavenger": ("Cosmic Avenger", "Shooter"), "dorodon": ("Dorodon", "Maze"),
+                    "sraider": ("Space Raider", "Shooter"), "mrsdyna": ("Mrs. Dynamite", "Maze"),
+                    "mrdo": ("Mr. Do!", "Maze")}
 REGION_WORDS = [("US", "US"), ("Japan", "Japan"), ("Spanish", "Spain"), ("Italian", "Italy"), ("French", "France"),
                 ("Brazil", "Brazil"), ("Argentina", "Argentina"), ("Greek", "Greece"), ("Hungarian", "Hungary")]
 
 # ---------------------------------------------------------------- parsing
 
-GAME_RE = re.compile(r'^GAME\(\s*([\w?]+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+),\s*\w+,\s*(\w+),\s*(ROT\d+),\s*"([^"]*)",\s*"([^"]*)",\s*([^)]*)\)', re.M)
+GAME_RE = re.compile(r'^GAME\(\s*([\w?]+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(ROT\d+),\s*"([^"]*)",\s*"([^"]*)",\s*([^)]*)\)', re.M)
 LOAD_RE = re.compile(r'ROM_LOAD\(\s*"([^"]+)",\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+),\s*(?:BAD_DUMP\s+)?CRC\(([0-9a-fA-F]+)\)')
 CONT_RE = re.compile(r'ROM_CONTINUE\(\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+)\s*\)')
 NIB_RE = re.compile(r'ROM_LOAD_NIB_(LOW|HIGH)\s*\(\s*"([^"]+)",\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+),\s*CRC\(([0-9a-fA-F]+)\)')
@@ -97,9 +108,9 @@ MACRO_RE = re.compile(r'\b(PORT_\w+|INPUT_PORTS_\w+)\b(\s*\(((?:[^()"]|"[^"]*"|\
 def parse_games(src):
     games = {}
     for m in GAME_RE.finditer(src):
-        year, name, parent, machine, inputs, init, rot, manuf, desc, flags = m.groups()
+        year, name, parent, machine, inputs, state, init, rot, manuf, desc, flags = m.groups()
         games[name] = dict(year=year, name=name, parent=None if parent == "0" else parent,
-                           machine=machine, inputs=inputs, init=init, rot=rot, manuf=manuf, desc=desc,
+                           machine=machine, inputs=inputs, state=state, init=init, rot=rot, manuf=manuf, desc=desc,
                            working="MACHINE_NOT_WORKING" not in flags)
     return games
 
@@ -321,11 +332,12 @@ def whole_file(seg, segs):
 def input_config(g, ports):
     """-> (idle bytes, dip list, input map, 4-way, P1 button names, trackball reverse flags, coin impulse)."""
     idle, dips, imap, fourway, buttons, tb_rev, impulse = [], [], [0] * 48, False, {}, 0, False
-    tags = [next((n for n in names if n in ports), names[0]) for names in PORTS]
+    port_list = PORTS_BY_MACHINE.get(g["machine"], PORTS)
+    tags = [next((n for n in names if n in ports), names[0]) for names in port_list]
     dip_ports = [p for p, t in enumerate(tags) if any(f["kind"] == "dip" for f in ports.get(t, []))]
     if len(dip_ports) > 3:
         raise SystemExit(f'{g["name"]}: {len(dip_ports)} DIP ports; Main_MiSTer only keeps 3 default bytes reliably')
-    for p, names in enumerate(PORTS):
+    for p, names in enumerate(port_list):
         tag = next((n for n in names if n in ports), names[0])
         fields = ports.get(tag)
         if fields is None:
@@ -446,7 +458,7 @@ def hiscore_xml(g):
 
 
 def mra(g, games, segs, build_inputs):
-    variant = SUPPORTED[(g["machine"], g["init"])]
+    variant = STATE_VARIANT.get(g["state"], SUPPORTED[(g["machine"], g["init"])])
     ports = build_inputs(g["inputs"])
     idle, dips, imap, fourway, buttons, tb_rev, impulse = input_config(g, ports)
     twoway = any(f.get("twoway") for fields in ports.values() for f in fields)

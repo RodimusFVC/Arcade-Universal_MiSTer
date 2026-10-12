@@ -54,6 +54,8 @@ module ladybug_rgb (
   output logic [1:0] rgb_r_o,
   output logic [1:0] rgb_g_o,
   output logic [1:0] rgb_b_o,
+  output logic [8:1] rgb_n_o,     // Universal: latched inverted PROM byte (8203 board wires it differently)
+  output logic       bg_o,        // Universal: pixel is background (no char pen, no sprite)
   // PROM download interface (replaces dn_* ports)
   input  logic       prom_wr_i,
   input  logic [4:0] prom_a_i,
@@ -63,6 +65,7 @@ module ladybug_rgb (
   logic [5:1] a_s;
   logic [8:1] rgb_s;
   logic [8:1] rgb_n_q;
+  logic       bg_d, bg_q;
 
   // ---------------------------------------------------------------------------
   // Process addr
@@ -119,6 +122,15 @@ module ladybug_rgb (
       end
     end
   end
+
+  // Universal: background flag, delayed like the PROM read and latched with the colour
+  always_ff @(posedge clk_20mhz_i) begin : bg_latch
+    bg_d <= (&sig_i) & ~(crg_i[1] | crg_i[2]);
+    if (clk_en_5mhz_i == 1'b1)
+      bg_q <= bg_d;
+  end
+  assign bg_o    = bg_q;
+  assign rgb_n_o = rgb_n_q;
 
   // ---------------------------------------------------------------------------
   // Output Mapping

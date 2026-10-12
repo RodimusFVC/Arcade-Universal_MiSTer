@@ -1,0 +1,72 @@
+<misterromdescription>
+    <name>Mr. Du!</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>yes</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Mr. Do!</series>
+    <year>1982</year>
+    <manufacturer>bootleg</manufacturer>
+    <category>Maze</category>
+
+    <setname>mrdu</setname>
+    <parent>mrdo</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="DF,FF">
+        <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Rack Test (Cheat)" bits="2" ids="Off,On" values="1,0"/>
+        <dip name="Special" bits="3" ids="Easy,Hard" values="1,0"/>
+        <dip name="Extra" bits="4" ids="Easy,Hard" values="1,0"/>
+        <dip name="Cabinet" bits="5" ids="Upright,Cocktail"/>
+        <dip name="Lives" bits="6,7" ids="2,3,4,5" values="0,3,2,1"/>
+        <dip name="Coin B" bits="8,11" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+        <dip name="Coin A" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="mrdu.zip|mrdo.zip">
+        <part crc="3dcd9359" name="d1"/>
+        <part crc="710058d8" name="d2"/>
+        <part crc="467d12d8" name="d3"/>
+        <part crc="893bc218" name="du4.bin"/>
+        <part crc="4090dcdc" name="du9.bin"/>
+        <part crc="1e63ab69" name="du10.bin"/>
+        <part crc="dbdc9ffa" name="r8-08.bin"/>
+        <part crc="4b9973db" name="n8-07.bin"/>
+        <part crc="238a65d7" name="u02--2.bin"/>
+        <part crc="ae263dc0" name="t02--3.bin"/>
+        <part crc="16ee4ca2" name="f10--1.bin"/>
+        <part crc="ff7fe284" name="j10--4.bin"/>
+        <part repeat="0xBF80">00</part>
+        <part crc="e1218cc5" name="h5-05.bin"/>
+        <part crc="b1f68b04" name="k5-06.bin"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            04 11 00 00 FF FF FF DF FF FF 80 80 80 00 01 80
+            03 02 04 01 05 13 14 15 0B 0A 0C 09 0D 00 11 12
+            00 00 00 00 00 00 00 00 00 00 24 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Mr. Du! (Bootleg)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>
