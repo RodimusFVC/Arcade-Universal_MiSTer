@@ -21,6 +21,7 @@
 //    hit 1st: IC8 556 (1k / 51k / 0.047u) CV = C34 (1u, R70 100k) + pink; gated by the same voltage
 //    laser ship explosion / hit 2nd: pink noise gated by C36 (4.7u) / C40 (1u)
 //    music: the CPU's bit through 100k / 51k, low-passed (C42 read as 0.0022u: 0.022u would leave ~70 Hz)
+//           mixed at twice the R92 220k weight (HW 2026-10-12: about half as loud as it should be)
 //    enable: Q2 shorts the mix bus
 //  Engine as rtl/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32, 1 V = 2^24).
 //
@@ -131,7 +132,7 @@ function automatic logic signed [31:0] w(input logic signed [31:0] vv, input log
 endfunction
 wire signed [31:0] mix_raw = (bgm ? w(o_bg, 16'd4024) : 0) + w(o_fi, 16'd4024) + (um8 ? w(o_um, 16'd1831) : 0)
                            + (ufo ? w(o_uf, 16'd1219) : 0) + w(o_co, 16'd5352) + w(o_h1, 16'd1831) + w(o_ls, 16'd3352)
-                           + w(o_h2, 16'd1831) + w(o_mu, 16'd1831) + (cp_run ? w(o_cp, 16'd40238) : 0);
+                           + w(o_h2, 16'd1831) + w(o_mu, 16'd3662) + (cp_run ? w(o_cp, 16'd40238) : 0);
 wire signed [31:0] mix = enable ? mix_raw : 32'sd0;                                         // Q2 shorts the bus
 
 `define AST(CAP, Q, RST, ACH, ADIS, TGT) begin x = ((RST) && (Q)) ? (TGT) - v[CAP] : -v[CAP]; a = ((RST) && (Q)) ? ACH : ADIS; end
