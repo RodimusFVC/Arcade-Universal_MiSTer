@@ -22,7 +22,15 @@ module crt_flip_fb
     input  logic       in_vbl,
     output logic [7:0] dout,
     output logic       out_hbl,
-    output logic       out_vbl
+    output logic       out_vbl,
+
+    // alternate use of the 128K RAM while a board without this frame buffer runs (Indoor Soccer sprite ROM)
+    input  logic        alt_en,
+    input  logic [16:0] alt_wa,
+    input  logic  [7:0] alt_wd,
+    input  logic        alt_we,
+    input  logic [16:0] alt_ra,
+    output logic  [7:0] alt_q
 );
 
 // visible 240 x 192; two frames of 46080 codes
@@ -58,6 +66,7 @@ wire  [7:0] rx = 8'd239 - x_q;
 wire [16:0] ra = base_r + {1'b0, ry, 8'd0} - {5'd0, ry, 4'd0} + {9'd0, rx};
 
 logic [7:0] q;
+assign alt_q = q;
 
 // write once per pixel, on the clock after the pixel arrives in d_q
 logic ce_d = 1'b0;
@@ -65,8 +74,8 @@ always_ff @(posedge clk) ce_d <= ce_pix;
 
 dpram_dc #(.widthad_a(17)) fb
 (
-    .clock_a(clk), .address_a(wa), .data_a(d_q), .wren_a(ce_d && vis_q),
-    .clock_b(clk), .address_b(ra), .q_b(q)
+    .clock_a(clk), .address_a(alt_en ? alt_wa : wa), .data_a(alt_en ? alt_wd : d_q), .wren_a(alt_en ? alt_we : (ce_d && vis_q)),
+    .clock_b(clk), .address_b(alt_en ? alt_ra : ra), .q_b(q)
 );
 
 always_ff @(posedge clk) begin

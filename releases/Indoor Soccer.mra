@@ -1,0 +1,78 @@
+<misterromdescription>
+    <name>Indoor Soccer</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Indoor Soccer</series>
+    <year>1985</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Sports</category>
+
+    <setname>idsoccer</setname>
+    <parent>idsoccer</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>horizontal</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>8-way</joystick>
+    <special_controls>twin stick</special_controls>
+    <num_buttons>6</num_buttons>
+    <buttons names="Fire,Button 2,R Right,R Left,Coin,Start 1P,Start 2P,Pause,R Down,R Up,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="FF,FF,FF">
+        <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Difficulty" bits="8,9" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Continuity" bits="10" ids="No,Yes"/>
+        <dip name="Flip Screen" bits="11" ids="Off,On" values="1,0"/>
+        <dip name="Allow Continue (2P)" bits="12" ids="No,Yes"/>
+        <dip name="Allow Continue (1P)" bits="13" ids="No,Yes"/>
+        <dip name="Real Game Time" bits="14,15" ids="1:00,2:00,2:30,3:00"/>
+        <dip name="Coin B" bits="16,19" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,1C/6C,Free Play" values="5,7,9,6,15,8,14,13,12,11,10,0"/>
+        <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,1C/6C,Free Play" values="5,7,9,6,15,8,14,13,12,11,10,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="idsoccer.zip">
+        <part crc="9eb76196" name="is1"/>
+        <part repeat="0xC000">00</part>
+        <part crc="27bebba3" name="is3"/>
+        <part crc="dd5ffaa2" name="is4"/>
+        <part repeat="0x8000">00</part>
+        <part crc="f1c3bf09" name="id01"/>
+        <part crc="184e6af0" name="id02"/>
+        <part repeat="0x2000">00</part>
+        <part crc="22524661" name="id03"/>
+        <part crc="e8cd95fd" name="id04"/>
+        <part repeat="0x6000">00</part>
+        <part crc="6c8b2037" name="id10"/>
+        <part crc="a57c7a11" name="id05"/>
+        <part repeat="0x4000">00</part>
+        <part crc="a433ff62" name="id_3d.clr"/>
+        <part repeat="0x3E00">00</part>
+        <part crc="b42a6f4a" name="id06"/>
+        <part crc="fa2b1c77" name="id07"/>
+        <part crc="5e97eab9" name="id08"/>
+        <part crc="a2a69223" name="id09"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            09 00 00 00 FF FF FF FF FF FF 80 80 00 01 02 80
+            26 29 27 28 2A 2D 2B 2C 05 06 00 13 0D 0E 00 14
+            15 16 16 00 12 11 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 04 01 03 02 0C 09 0B 0A
+        </part>
+    </rom>
+
+    <remark>Indoor Soccer (Set 1) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

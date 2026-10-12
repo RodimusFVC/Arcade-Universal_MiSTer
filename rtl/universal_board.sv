@@ -12,6 +12,7 @@
 //  Variant 6: Mr. Do! bootleg (mrdobl: 4.0 MHz CPU, PAL with feedback)
 //  Variant 7: Mr. Do's Castle board, docastle_state map (docastle, Do! Run Run on Castle hardware, runrun)
 //  Variant 8: Mr. Do's Castle board, dorunrun_state map (dorunrun, spiero, dowild, jjack, kickridr)
+//  Variant 9: Mr. Do's Castle board, Indoor Soccer (idsoccer_state: MSM5205 ADPCM, twin joysticks)
 //
 //  ioctl index 0 (MRA), images stored as dumped, MAME region order:
 //    0x00000 - 0x05FFF  maincpu
@@ -26,6 +27,8 @@
 //  Mr. Do's Castle board:
 //    0x20000 - 0x29FFF  maincpu    0x30000 - 0x33FFF  subcpu     0x34000 - 0x37FFF  gfx1 (tiles)
 //    0x3C000 - 0x3C0FF  proms      0x40000 - 0x47FFF  gfx2 (sprites)
+//  Indoor Soccer: gfx2 0x40000 - 0x5FFFF (in the CRT Flip frame buffer RAM), adpcm 0x0000-0x7FFF -> 0x00000,
+//    0x8000-0xFFFF -> 0x10000 (in the Lady Bug / Mr. Do! CPU ROMs, unused on this board)
 //
 //============================================================================
 
@@ -86,7 +89,11 @@ wire load_grid = ioctl_wr0 && ioctl_addr[24:12] == 13'h0018;
 wire board_8203  = (variant == 8'd1) || (variant == 8'd2);
 wire sraider_ovl = (variant == 8'd1);
 wire mrdo        = (variant >= 8'd3) && (variant <= 8'd6);
-wire dcastle     = (variant == 8'd7) || (variant == 8'd8);
+wire dcastle     = (variant == 8'd7) || (variant == 8'd8) || (variant == 8'd9);
+wire idsoc       = (variant == 8'd9);
+logic [15:0] dc_adpcm_a;
+logic [16:0] dc_spr8_a;
+logic  [7:0] dc_spr8_d;
 
 logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a;
 logic [11:0] lb_char_a, lb_sprite_a, md_fg_a, md_bg_a;
@@ -95,7 +102,7 @@ logic  [7:0] dec_a;
 logic  [7:0] dec_h, dec_l;
 logic [11:0] rom_char_a, rom_sprite_a;
 
-assign rom_cpu_a    = mrdo ? md_cpu_a : lb_cpu_a;
+assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : lb_cpu_a;
 assign rom_char_a   = mrdo ? md_fg_a  : lb_char_a;
 assign rom_sprite_a = mrdo ? md_bg_a  : lb_sprite_a;
 logic [15:0] rom_char_d, rom_sprite_d;
@@ -143,7 +150,8 @@ dpram_dc #(.widthad_a(8)) rom_dec_l
     .clock_b(clk), .address_b(dec_a), .q_b(dec_l)
 );
 
-logic [14:0] rom_sub_a;
+logic [14:0] rom_sub_a, lb_sub_a;
+assign rom_sub_a = idsoc ? dc_adpcm_a[14:0] : lb_sub_a;
 logic  [7:0] rom_sub_d;
 logic [11:0] grid_rom_a;
 logic  [7:0] grid_rom_d, grid_ram_a, grid_ram_d;
@@ -287,7 +295,7 @@ ladybug_machine ladybug
     .rom_char_d_i    (rom_char_d),
     .rom_sprite_a_o  (lb_sprite_a),
     .rom_sprite_d_i  (rom_sprite_d),
-    .rom_sub_a_o     (rom_sub_a),
+    .rom_sub_a_o     (lb_sub_a),
     .rom_sub_d_i     (rom_sub_d),
 
     .prom_a_i        (ioctl_addr[4:0]),
@@ -345,7 +353,13 @@ crt_flip_fb flip_fb
     .in_vbl  (ov_vbl),
     .dout    (fb_code),
     .out_hbl (fb_hbl),
-    .out_vbl (fb_vbl)
+    .out_vbl (fb_vbl),
+    .alt_en  (idsoc),
+    .alt_wa  (ioctl_addr[16:0]),
+    .alt_wd  (ioctl_dout),
+    .alt_we  (ioctl_wr0 && ioctl_addr[24:17] == 8'h02),       // 0x40000-0x5FFFF
+    .alt_ra  (dc_spr8_a),
+    .alt_q   (dc_spr8_d)
 );
 
 // colour code -> RGB (see sraider_overlay.sv); star colours from MAME sraider_palette
@@ -440,13 +454,15 @@ docastle_board docastle_b
     .reset        (reset | ~dcastle),
     .pause        (pause),
     .map_mode     (variant == 8'd8),
-    .pri_low      (variant == 8'd8),
+    .idsoccer     (idsoc),
+    .pri_low      (variant == 8'd8 || idsoc),
     .crt_flip     (crt_flip),
     .joys         (in0),
     .buttons      (in1),
     .system       (in2),
     .dsw1         (dsw0),
     .dsw2         (dsw1),
+    .joys2        (coin),
     .h_adj        (h_adj),
     .v_adj        (v_adj),
     .ce_pix       (dc_ce),
@@ -466,6 +482,10 @@ docastle_board docastle_b
     .rom_tile_d   (dc_tile_d),
     .rom_spr_a    (dc_spr_a),
     .rom_spr_d    (dc_spr_d),
+    .rom_spr8_a   (dc_spr8_a),
+    .rom_spr8_d   (dc_spr8_d),
+    .rom_adpcm_a  (dc_adpcm_a),
+    .rom_adpcm_d  (dc_adpcm_a[15] ? rom_sub_d : rom_cpu_d),
     .prom_wr      (load_dc_prom),
     .prom_a       (ioctl_addr[7:0]),
     .prom_d       (ioctl_dout),

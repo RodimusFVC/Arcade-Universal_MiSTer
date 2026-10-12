@@ -16,6 +16,10 @@
 //      4000-9FFF ROM, A000-A7FF latch, B000 video RAM, B400 colour RAM, B800 sub NMI;
 //      sub 0000-3FFF ROM, 8000-87FF RAM, A000/A400/A800/AC00 SN76489A, C000 inputs / flip,
 //      E000-E7FF latch.
+//  idsoccer (MAME idsoccer_state): main 0000-3FFF / 6000-9FFF ROM, 4000-57FF RAM, 5800-59FF sprites,
+//      A000 latch, B000/B800 video RAM, B400/BC00 colour RAM, C000 ADPCM status / control, E000 sub NMI;
+//      sub as docastle; sprite layout with tile bits 8-9 and no Y flip; MSM5205 at 384 kHz / 48;
+//      second joystick on TMS1025 port 4; sprite graphics byte-wide (8 reads per row).
 //  pri_low: tile pens 0-7 drawn over sprites (dorunrun_state), else pens 8-15 (docastle_state).
 //
 //  Main <-> sub: one bidirectional latch; a main access holds main WAIT until the sub CPU
@@ -33,6 +37,7 @@ module docastle_board
     input  logic               reset,
     input  logic               pause,
     input  logic               map_mode,
+    input  logic               idsoccer,
     input  logic               pri_low,
     input  logic               crt_flip,
 
@@ -41,6 +46,7 @@ module docastle_board
     input  logic         [7:0] system,
     input  logic         [7:0] dsw1,
     input  logic         [7:0] dsw2,
+    input  logic         [7:0] joys2,
 
     input  logic         [3:0] h_adj,
     input  logic         [3:0] v_adj,
@@ -63,6 +69,10 @@ module docastle_board
     input  logic        [31:0] rom_tile_d,
     output logic        [11:0] rom_spr_a,      // gfx2 row: 8 byte lanes
     input  logic        [63:0] rom_spr_d,
+    output logic        [16:0] rom_spr8_a,     // idsoccer gfx2 (128K, byte-wide)
+    input  logic         [7:0] rom_spr8_d,
+    output logic        [15:0] rom_adpcm_a,
+    input  logic         [7:0] rom_adpcm_d,
 
     input  logic               prom_wr,
     input  logic         [7:0] prom_a,
@@ -117,14 +127,18 @@ wire m_mem = !m_mreq_n && m_rfsh_n;
 wire m_io  = !m_iorq_n && m_m1_n;
 
 // address decode per board
-wire m_rom  = m_mem && (map_mode ? (m_a < 16'h2000 || (m_a >= 16'h4000 && m_a < 16'hA000)) : !m_a[15]);
-wire m_ram  = m_mem && (map_mode ? (m_a >= 16'h2000 && m_a < 16'h3800) : (m_a >= 16'h8000 && m_a < 16'h9800));
-wire m_spr  = m_mem && (map_mode ? (m_a[15:9] == 7'b0011100) : (m_a[15:9] == 7'b1001100));        // 3800 / 9800, 512 bytes
+wire m_rom  = m_mem && (idsoccer ? (m_a < 16'h4000 || (m_a >= 16'h6000 && m_a < 16'hA000)) :
+                        map_mode ? (m_a < 16'h2000 || (m_a >= 16'h4000 && m_a < 16'hA000)) : !m_a[15]);
+wire m_ram  = m_mem && (idsoccer ? (m_a >= 16'h4000 && m_a < 16'h5800) :
+                        map_mode ? (m_a >= 16'h2000 && m_a < 16'h3800) : (m_a >= 16'h8000 && m_a < 16'h9800));
+wire m_spr  = m_mem && (idsoccer ? (m_a[15:9] == 7'b0101100) :
+                        map_mode ? (m_a[15:9] == 7'b0011100) : (m_a[15:9] == 7'b1001100));        // 5800 / 3800 / 9800
 wire m_lat  = m_mem && m_a[15:11] == 5'b10100;                                                     // A000-A7FF
-wire m_vid  = m_mem && (map_mode ? (m_a[15:11] == 5'b10110) : (m_a[15:12] == 4'hB));                // docastle: mirrored at B800
+wire m_vid  = m_mem && (map_mode ? (m_a[15:11] == 5'b10110) : (m_a[15:12] == 4'hB));                // docastle / idsoccer: mirrored at B800
 wire m_vram = m_vid && !m_a[10];
 wire m_cram = m_vid &&  m_a[10];
 wire m_nmi  = m_mem && !m_wr_n && (map_mode ? (m_a[15:11] == 5'b10111) : (m_a[15:12] == 4'hE));  // B800 / E000
+wire m_adp  = m_mem && idsoccer && m_a[15:12] == 4'hC;                                             // C000
 wire m_crtc = m_io && !m_wr_n && m_a[7:2] == 6'd0 && !m_a[0];                                       // 00 address, 02 data
 
 wire [12:0] m_ram_a = m_a[12:0];                         // 2000-37FF / 8000-97FF -> 0000-17FF
@@ -200,18 +214,19 @@ logic [7:0] tms_h = 8'h00;
 logic       flip  = 1'b0;
 logic       s_inp_d = 1'b0;
 
-function automatic [7:0] tms_port(input [2:0] s, input [7:0] j, input [7:0] b, input [7:0] sy, input [7:0] d1, input [7:0] d2);
+function automatic [7:0] tms_port(input [2:0] s, input [7:0] j, input [7:0] b, input [7:0] sy, input [7:0] d1, input [7:0] d2, input [7:0] j2);
     case (s)
         3'd1: tms_port = d2;
         3'd2: tms_port = d1;
         3'd3: tms_port = j;
+        3'd4: tms_port = j2;
         3'd5: tms_port = b;
         3'd7: tms_port = sy;
         default: tms_port = 8'h00;                             // unconnected port inputs read 0 (MAME default)
     endcase
 endfunction
 
-wire [7:0] tms_now = (tms_s != 3'd0) ? tms_port(tms_s, joys, buttons, system, dsw1, dsw2) : tms_h;
+wire [7:0] tms_now = (tms_s != 3'd0) ? tms_port(tms_s, joys, buttons, system, dsw1, dsw2, idsoccer ? joys2 : 8'h00) : tms_h;
 
 always_ff @(posedge clk) begin
     s_inp_d <= s_inp;
@@ -240,7 +255,63 @@ generate
     end
 endgenerate
 wire signed [12:0] snd_sum = sn_out[0] + sn_out[1] + sn_out[2] + sn_out[3];
-assign audio = {snd_sum, 3'd0};
+
+// ------------------------------------------------------------------ Indoor Soccer ADPCM (MAME idsoccer_state)
+// 384 kHz / 48 = 8 kHz VCK = 19.656 MHz / 2457. Control write: D7 falling = stop, D6 falling = start the
+// 16K-byte block (D1-D0); status read: D7 = playing. Each VCK: next nibble (high first) or stop at the block end.
+logic [11:0] vck_div = 12'd0;
+wire         vck = (vck_div == 12'd2456);
+always_ff @(posedge clk) vck_div <= vck ? 12'd0 : vck_div + 12'd1;
+
+logic [16:0] adp_pos = 17'd0, adp_end = 17'd0;              // nibble address (64K bytes)
+logic        adp_idle = 1'b1, adp_rst = 1'b1, adp_wr_d = 1'b0;
+logic  [7:0] adp_ctl = 8'h00;
+logic  [3:0] adp_nib = 4'd0;
+logic        adp_step = 1'b0;
+wire         adp_wr = m_adp && !m_wr_n;
+
+assign rom_adpcm_a = adp_pos[16:1];
+
+always_ff @(posedge clk) begin
+    adp_wr_d <= adp_wr;
+    adp_step <= 1'b0;
+    if (reset) begin
+        adp_idle <= 1'b1; adp_rst <= 1'b1; adp_ctl <= 8'h00;
+    end
+    else begin
+        if (adp_wr && !adp_wr_d) begin
+            if (adp_ctl[7] && !m_do[7]) begin adp_idle <= 1'b1; adp_rst <= 1'b1; end
+            if (adp_ctl[6] && !m_do[6]) begin
+                adp_pos  <= {m_do[1:0], 15'd0};                                // (data & 3) * 0x8000 nibbles
+                adp_end  <= {m_do[1:0], 15'd0} + 17'h08000;
+                adp_idle <= 1'b0; adp_rst <= 1'b0;
+            end
+            adp_ctl <= m_do;
+        end
+        if (vck && !pause) begin
+            if (adp_pos >= adp_end || adp_idle) begin
+                adp_idle <= 1'b1; adp_rst <= 1'b1;
+            end
+            else begin
+                adp_nib <= adp_pos[0] ? rom_adpcm_d[3:0] : rom_adpcm_d[7:4];
+                adp_pos <= adp_pos + 17'd1;
+            end
+            adp_step <= 1'b1;                                   // decoder runs after the callback, as in MAME
+        end
+    end
+end
+
+logic signed [11:0] adp_sig;
+msm5205 adpcm
+(
+    .clk(clk), .step(adp_step), .rst(adp_rst), .data(adp_nib), .signal(adp_sig)
+);
+
+// mix: 4x SN76489A at 0.25, MSM5205 at 0.40 (MAME routes)
+// SN: jt89 channel +/-255 x4 = MAME 0x7fff/4 x 0.25 per channel; MSM: MAME 2047/4096 x 0.40 of full scale = x3.2
+wire signed [16:0] adp_w = {{5{adp_sig[11]}}, adp_sig} * 17'sd13;
+wire signed [16:0] mix = {{4{snd_sum[12]}}, snd_sum} * 17'sd4 + (idsoccer ? (adp_w >>> 2) : 17'sd0);
+assign audio = (mix > 17'sd32767) ? 16'sd32767 : (mix < -17'sd32768) ? -16'sd32768 : mix[15:0];
 
 // ------------------------------------------------------------------ CRTC
 logic        crtc_vs, crtc_hs, crtc_vbl, crtc_hbl, crtc_de;
@@ -304,6 +375,7 @@ always_comb begin
     else if (m_lat)  m_di = latch;
     else if (m_vram) m_di = vram_q;
     else if (m_cram) m_di = cram_q;
+    else if (m_adp)  m_di = adp_idle ? 8'h00 : 8'h80;
 end
 
 always_comb begin
@@ -374,7 +446,7 @@ generate
     end
 endgenerate
 
-typedef enum logic [1:0] {SP_IDLE, SP_ADDR, SP_CHK, SP_PIX} sp_state_t;
+typedef enum logic [2:0] {SP_IDLE, SP_ADDR, SP_CHK, SP_FETCH, SP_PIX} sp_state_t;
 sp_state_t   sp_st = SP_IDLE;
 logic  [6:0] sp_e7;
 logic  [7:0] sp_line;                                          // logical (MAME) line being built
@@ -395,12 +467,20 @@ wire  [8:0] sy0  = {1'b0, spr_q[0]} - 9'd32;
 wire  [8:0] sx   = flip ? 9'd240 - sx0 : sx0;
 wire  [8:0] sy   = flip ? 9'd176 - sy0 : sy0;
 wire        fx   = spr_q[2][6] ^ flip;
-wire        fy   = spr_q[2][7] ^ flip;
+wire        fy   = (idsoccer ? 1'b0 : spr_q[2][7]) ^ flip;     // Indoor Soccer: no Y flip bit
+wire  [9:0] sp_code10 = {spr_q[2][7], spr_q[2][4], spr_q[3]};  // Indoor Soccer: tile bits 9 (attr 7) and 8 (attr 4)
+
+// Indoor Soccer row fetch: 8 bytes from the byte-wide sprite ROM
+logic [16:0] sp_rom8_a;
+logic  [3:0] sp_k;
+logic [63:0] sp_row8;
+assign rom_spr8_a = sp_rom8_a;
 wire  [8:0] sr   = {1'b0, sp_line} - sy;
 wire        on_line = !sr[8] && sr[7:4] == 4'd0;
 
 wire  [3:0] sp_c    = sp_fx ? ~sp_px : sp_px;
-wire  [7:0] sp_byte = rom_spr_d[{sp_c[3:1], 3'b000} +: 8];
+wire [63:0] sp_rowd = idsoccer ? sp_row8 : rom_spr_d;
+wire  [7:0] sp_byte = sp_rowd[{sp_c[3:1], 3'b000} +: 8];
 wire  [3:0] sp_pen  = sp_c[0] ? sp_byte[3:0] : sp_byte[7:4];  // packed MSB first: even pixel in the high nibble
 wire  [8:0] sp_xp   = sp_x + {5'd0, sp_px};
 
@@ -428,15 +508,23 @@ always_ff @(posedge clk) begin
         SP_CHK:  begin
                      if (on_line) begin
                          sp_rom_a  <= {spr_q[3], fy ? ~sr[3:0] : sr[3:0]};
+                         sp_rom8_a <= {sp_code10, fy ? ~sr[3:0] : sr[3:0], 3'd0};
+                         sp_k      <= 4'd0;
                          sp_x      <= sx;
                          sp_fx     <= fx;
-                         sp_color  <= spr_q[2][4:0];
+                         sp_color  <= idsoccer ? {1'b0, spr_q[2][3:0]} : spr_q[2][4:0];
                          sp_px     <= 4'd0;
                          sp_rom_ok <= 1'b0;
-                         sp_st     <= SP_PIX;
+                         sp_st     <= idsoccer ? SP_FETCH : SP_PIX;
                      end
                      else if (sp_e7 == 7'd0) sp_st <= SP_IDLE;
                      else begin sp_e7 <= sp_e7 - 7'd1; sp_st <= SP_ADDR; end
+                 end
+        SP_FETCH: begin                                        // address k on the bus, byte k-1 arrives
+                     if (sp_k != 4'd0) sp_row8[{sp_k[2:0] - 3'd1, 3'b000} +: 8] <= rom_spr8_d;
+                     sp_rom8_a[2:0] <= sp_rom8_a[2:0] + 3'd1;
+                     sp_k <= sp_k + 4'd1;
+                     if (sp_k == 4'd8) sp_st <= SP_PIX;
                  end
         SP_PIX:  begin
                      if (!sp_rom_ok) sp_rom_ok <= 1'b1;        // ROM read cycle

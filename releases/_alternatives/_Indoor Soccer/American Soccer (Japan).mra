@@ -1,0 +1,77 @@
+<misterromdescription>
+    <name>American Soccer (Japan)</name>
+    <region>Japan</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Indoor Soccer</series>
+    <year>1987</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Sports</category>
+
+    <setname>asoccer</setname>
+    <parent>idsoccer</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>horizontal</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>8-way</joystick>
+    <special_controls>twin stick</special_controls>
+    <num_buttons>6</num_buttons>
+    <buttons names="Fire,Button 2,R Right,R Left,Coin,Start 1P,Start 2P,Pause,R Down,R Up,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="FF,FF,FF">
+        <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Difficulty" bits="8,9" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Flip Screen" bits="11" ids="Off,On" values="1,0"/>
+        <dip name="Real Game Time" bits="14,15" ids="1:00,2:00,2:30,3:00"/>
+        <dip name="Joysticks" bits="10" ids="Single,Dual"/>
+        <dip name="Demo Sounds" bits="13" ids="Off,On"/>
+        <dip name="Coin B" bits="16,19" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,1C/6C,Free Play" values="5,7,9,6,15,8,14,13,12,11,10,0"/>
+        <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,1C/6C,Free Play" values="5,7,9,6,15,8,14,13,12,11,10,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="asoccer.zip|idsoccer.zip">
+        <part crc="3bb65dc7" name="1.ic1"/>
+        <part repeat="0xC000">00</part>
+        <part crc="27bebba3" name="3.ic3"/>
+        <part crc="dd5ffaa2" name="4.ic4"/>
+        <part repeat="0x8000">00</part>
+        <part crc="e9d61bbf" name="as1.e10"/>
+        <part crc="62b2e4c8" name="as2.f10"/>
+        <part repeat="0x2000">00</part>
+        <part crc="25bbd0d8" name="as3.h10"/>
+        <part crc="8d8bdc08" name="as4.k10"/>
+        <part repeat="0x6000">00</part>
+        <part crc="05d613bf" name="as0.e2"/>
+        <part crc="430295c4" name="as5-2.e6"/>
+        <part repeat="0x4000">00</part>
+        <part crc="a433ff62" name="3-2d.d3-2"/>
+        <part repeat="0x3E00">00</part>
+        <part crc="ae577023" name="as6.p3-2"/>
+        <part crc="a20ddd9b" name="as7.n3-2"/>
+        <part crc="dafad065" name="as8.l3-2"/>
+        <part crc="3a2ae776" name="as9.j3-2"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            09 00 00 00 FF FF FF FF FF FF 80 80 00 01 02 80
+            26 29 27 28 2A 2D 2B 2C 05 06 00 13 0D 0E 00 14
+            15 16 16 00 12 11 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 04 01 03 02 0C 09 0B 0A
+        </part>
+    </rom>
+
+    <remark>American Soccer (Japan) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

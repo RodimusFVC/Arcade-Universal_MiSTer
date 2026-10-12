@@ -41,9 +41,15 @@ REGIONS = {
 
 # machine -> {region: (ioctl index, base, size) or None to drop}; index 2 is written to SDRAM
 # Mr. Do's Castle board: own area of index 0 (the sprite CPU's pass-through PROM is not used)
-REGION_OVERRIDE = {m: {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x30000, 0x04000), "spritecpu": None,
-                 "gfx1": (0, 0x34000, 0x04000), "proms": (0, 0x3C000, 0x00200), "gfx2": (0, 0x40000, 0x08000)}
-                   for m in ("docastle", "dorunrun")}
+REGION_OVERRIDE = {**{m: {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x30000, 0x04000), "spritecpu": None,
+                     "gfx1": (0, 0x34000, 0x04000), "proms": (0, 0x3C000, 0x00200), "gfx2": (0, 0x40000, 0x08000)}
+                    for m in ("docastle", "dorunrun")},
+                   # Indoor Soccer: gfx2 (128K) in the CRT Flip frame buffer RAM, ADPCM in the Lady Bug / Mr. Do! CPU ROMs
+                   "idsoccer": {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x30000, 0x04000), "spritecpu": None,
+                                "gfx1": (0, 0x34000, 0x08000), "proms": (0, 0x3C000, 0x00200), "gfx2": (0, 0x40000, 0x20000),
+                                "adpcm": "split"}}
+# region -> [(region offset, length, index-0 base)] for regions spread over two board RAMs
+REGION_SPLIT = {"idsoccer": {"adpcm": [(0x0000, 0x8000, 0x00000), (0x8000, 0x8000, 0x10000)]}}
 
 IGNORED_REGIONS = {"pal16r6"}                       # Mr. Do! U001: modelled in rtl/mrdo/mrdo_board.sv
 
@@ -57,6 +63,7 @@ SUPPORTED = {
     ("mrdobl", "empty_init"): 6,
     ("docastle", "empty_init"): 7,
     ("dorunrun", "empty_init"): 8,
+    ("idsoccer", "empty_init"): 9,
 }
 
 # init -> (index 1 byte 2 CPU ROM decode, unused)
@@ -70,13 +77,13 @@ F2_P2_FOLLOWS_P1 = 0x01
 CUSTOM_PORTS = {"ladybug_p1_control_r": "CONTP1", "ladybug_p2_control_r": "CONTP2"}
 
 # MAME state class -> board variant override (same machine config, different protection PAL)
-STATE_VARIANT = {"mrdot_state": 4, "mrlo_state": 5, "dorunrun_state": 8}
+STATE_VARIANT = {"mrdot_state": 4, "mrlo_state": 5, "dorunrun_state": 8, "idsoccer_state": 9}
 # port order on the board: index 1 idle bytes 4-9, DIP selectors 10-15, input map bytes 16-63.
 # Only ports carrying DIPs go in <switches> (bytes 0.., in port order): Main_MiSTer builds the default with
 # 32-bit int shifts (mra_loader.cpp: binary[i] << (i * 8)), so only bytes 0-2 (and a byte 3 < 0x80) survive.
 PORTS = [("IN0",), ("IN1",), ("IN2",), ("DSW0",), ("DSW1",), ("COIN",)]   # first name present wins
 PORTS_BY_MACHINE = {**{m: [("P1",), ("P2",), ("IN2",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("mrdo", "mrdobl")},
-                    **{m: [("JOYS",), ("BUTTONS",), ("SYSTEM",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("docastle", "dorunrun")}}
+                    **{m: [("JOYS",), ("BUTTONS",), ("SYSTEM",), ("DSW1",), ("DSW2",), ("JOYS2",)] for m in ("docastle", "dorunrun", "idsoccer")}}
 
 # control ids (Arcade-Universal.sv)
 CTL = {("JOYSTICK_UP", 1): 1, ("JOYSTICK_DOWN", 1): 2, ("JOYSTICK_LEFT", 1): 3, ("JOYSTICK_RIGHT", 1): 4,
@@ -85,7 +92,11 @@ CTL = {("JOYSTICK_UP", 1): 1, ("JOYSTICK_DOWN", 1): 2, ("JOYSTICK_LEFT", 1): 3, 
        ("BUTTON1", 2): 13, ("BUTTON2", 2): 14, ("BUTTON3", 2): 15, ("BUTTON4", 2): 16,
        ("BUTTON5", 1): 32, ("BUTTON6", 1): 33, ("BUTTON5", 2): 34, ("BUTTON6", 2): 35,
        ("COIN1", 0): 17, ("COIN2", 0): 18, ("START1", 0): 19, ("START2", 0): 20,
-       ("TILT", 0): 21, ("SERVICE1", 0): 22, ("SERVICE2", 0): 22, ("SERVICE", 0): 22, ("COIN3", 0): 23}
+       ("TILT", 0): 21, ("SERVICE1", 0): 22, ("SERVICE2", 0): 22, ("SERVICE", 0): 22, ("COIN3", 0): 23,
+       # twin stick: left stick = movement ids, right stick = right analog stick or Btn 3-6 (Arcade-Universal.sv)
+       **{(f"JOYSTICKLEFT_{d}", pl): b + o for pl, b in ((1, 0), (2, 8)) for d, o in (("UP", 1), ("DOWN", 2), ("LEFT", 3), ("RIGHT", 4))},
+       **{(f"JOYSTICKRIGHT_{d}", pl): b + o for pl, b in ((1, 38), (2, 42)) for d, o in (("RIGHT", 0), ("LEFT", 1), ("DOWN", 2), ("UP", 3))}}
+TWIN_IDS = range(38, 46)
 TRACKBALL = {"TRACKBALL_X": 24, "TRACKBALL_Y": 28}   # ids 24-27 / 28-31 = counter bits 0-3
 IGNORED_TYPES = {"UNUSED", "UNKNOWN"}
 WORKING_HERE = set()
@@ -96,7 +107,8 @@ SERIES_BY_PARENT = {"ladybug": ("Lady Bug", "Maze"), "snapjack": ("Snap Jack", "
                     "sraider": ("Space Raider", "Shooter"), "mrsdyna": ("Mrs. Dynamite", "Maze"),
                     "mrdo": ("Mr. Do!", "Maze"), "docastle": ("Mr. Do's Castle", "Platform"),
                     "dorunrun": ("Do! Run Run", "Maze"), "dowild": ("Mr. Do's Wild Ride", "Platform"),
-                    "jjack": ("Jumping Jack", "Platform"), "kickridr": ("Kick Rider", "Sports")}
+                    "jjack": ("Jumping Jack", "Platform"), "kickridr": ("Kick Rider", "Sports"),
+                    "idsoccer": ("Indoor Soccer", "Sports")}
 REGION_WORDS = [("US", "US"), ("Japan", "Japan"), ("Spanish", "Spain"), ("Italian", "Italy"), ("French", "France"),
                 ("Brazil", "Brazil"), ("Argentina", "Argentina"), ("Greek", "Greece"), ("Hungarian", "Hungary")]
 
@@ -300,7 +312,14 @@ def place(segs, setname, machine):
         if s["region"] in over:
             if over[s["region"]] is None:
                 continue
-            idx, base, size = over[s["region"]]
+            if over[s["region"]] == "split":
+                lo, ln, bs = next(t for t in REGION_SPLIT[machine][s["region"]] if t[0] <= s["dst"] < t[0] + t[1])
+                if s["dst"] + s["len"] > lo + ln:
+                    raise SystemExit(f"{setname}: {s['name']} crosses a split of {s['region']}")
+                s = dict(s, dst=s["dst"] - lo)
+                idx, base, size = 0, bs, ln
+            else:
+                idx, base, size = over[s["region"]]
         elif s["region"] in IGNORED_REGIONS:
             continue
         elif s["region"] not in REGIONS:
@@ -474,6 +493,10 @@ def mra(g, games, segs, build_inputs):
             (F_VERT if g["rot"] in ("ROT90", "ROT270") else 0) | \
             (F_ROT90 if g["rot"] == "ROT90" else 0)
     nbtn = max(buttons) if buttons else 0
+    twin = any(i in TWIN_IDS for i in imap)
+    if twin:                                           # Btn 3-6 carry the right-hand stick
+        buttons.update({3: "R Right", 4: "R Left", 5: "R Down", 6: "R Up"})
+        nbtn = 6
     names = ",".join([buttons.get(i, "Not Used") for i in range(1, 5)] + ["Coin", "Start 1P", "Start 2P", "Pause"] +
                      [buttons.get(i, "Not Used") for i in (5, 6)] +
                      ["Rack Test" if RACK_HOLD in imap or RACK_TOGGLE in imap else "Not Used"])
@@ -541,7 +564,7 @@ def mra(g, games, segs, build_inputs):
 
     <players>2 (alternating)</players>
     <joystick>{"2-way" if twoway else "4-way" if fourway else "8-way"}</joystick>
-    <special_controls>{"trackball" if any(24 <= i < 32 for i in imap) else ""}</special_controls>
+    <special_controls>{"trackball" if any(24 <= i < 32 for i in imap) else "twin stick" if twin else ""}</special_controls>
     <num_buttons>{nbtn}</num_buttons>
     <buttons names="{names}" default="A,B,X,Y,Select,Start,R,L"/>
 

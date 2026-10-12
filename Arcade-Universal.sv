@@ -45,6 +45,7 @@ wire  [7:0] ioctl_index;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 wire [15:0] joystick_0, joystick_1;
+wire [15:0] joystick_r_analog_0, joystick_r_analog_1;   // right analog sticks: [15:8] Y, [7:0] X, signed
 wire [21:0] gamma_bus;
 wire        direct_video;
 wire        video_rotated;
@@ -175,6 +176,8 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
+	.joystick_r_analog_0(joystick_r_analog_0),
+	.joystick_r_analog_1(joystick_r_analog_1),
 	.ps2_key(ps2_key)
 );
 
@@ -285,10 +288,24 @@ always @(posedge CLK_SYS) begin
 	else if (rack_btn & ~rack_d) rack_tog <= ~rack_tog;
 end
 
+// Twin stick (Crazy Climber pattern): right-hand stick = right analog stick, or Btn 3-6 = R Right / Left / Down / Up
+wire signed [7:0] rx0 = joystick_r_analog_0[7:0], ry0 = joystick_r_analog_0[15:8];
+wire signed [7:0] rx1 = joystick_r_analog_1[7:0], ry1 = joystick_r_analog_1[15:8];
+wire [3:0] rstick0 = {ry0 < -8'sd48, ry0 > 8'sd48, rx0 < -8'sd48, rx0 > 8'sd48};   // {U, D, L, R}
+wire [3:0] rstick1 = {ry1 < -8'sd48, ry1 > 8'sd48, rx1 < -8'sd48, rx1 > 8'sd48};
+
 // control ids used by the MRA input map (same numbering as the Pac-Man core; 24-31 reserved for analog)
 wire [63:0] ctl =
 {
-	26'd0,
+	18'd0,
+	joystick_1[13] | rstick1[3],                    // 45 P2 R Up    (Btn 6)
+	joystick_1[12] | rstick1[2],                    // 44 P2 R Down  (Btn 5)
+	joystick_1[7]  | rstick1[1],                    // 43 P2 R Left  (Btn 4)
+	joystick_1[6]  | rstick1[0],                    // 42 P2 R Right (Btn 3)
+	joystick_0[13] | rstick0[3],                    // 41 P1 R Up    (Btn 6)
+	joystick_0[12] | rstick0[2],                    // 40 P1 R Down  (Btn 5)
+	joystick_0[7]  | rstick0[1],                    // 39 P1 R Left  (Btn 4)
+	joystick_0[6]  | rstick0[0],                    // 38 P1 R Right (Btn 3)
 	rack_tog,                                       // 37 rack test (toggle)
 	rack_btn,                                       // 36 rack test (held)
 	joystick_1[13:12],                              // 35-34 P2 Btn 6-5
