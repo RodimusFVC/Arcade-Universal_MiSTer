@@ -47,7 +47,10 @@ REGION_OVERRIDE = {**{m: {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x3000
                    # Indoor Soccer: gfx2 (128K) in the CRT Flip frame buffer RAM, ADPCM in the Lady Bug / Mr. Do! CPU ROMs
                    "idsoccer": {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x30000, 0x04000), "spritecpu": None,
                                 "gfx1": (0, 0x34000, 0x08000), "proms": (0, 0x3C000, 0x00200), "gfx2": (0, 0x40000, 0x20000),
-                                "adpcm": "split"}}
+                                "adpcm": "split"},
+                   # Zero Hour / Red Clash: gfx2 in the Castle sprite ROM lanes (64-bit rows); gfx3 is MAME's rearranged
+                   # copy of gfx2, decoded on read
+                   **{m: {"gfx2": (0, 0x40000, 0x02000), "gfx3": None} for m in ("zerohour", "redclash")}}
 # region -> [(region offset, length, index-0 base)] for regions spread over two board RAMs
 REGION_SPLIT = {"idsoccer": {"adpcm": [(0x0000, 0x8000, 0x00000), (0x8000, 0x8000, 0x10000)]}}
 
@@ -64,6 +67,8 @@ SUPPORTED = {
     ("docastle", "empty_init"): 7,
     ("dorunrun", "empty_init"): 8,
     ("idsoccer", "empty_init"): 9,
+    ("zerohour", "init_zerohour"): 10,
+    ("redclash", "init_zerohour"): 11,
 }
 
 # init -> (index 1 byte 2 CPU ROM decode, unused)
@@ -83,7 +88,8 @@ STATE_VARIANT = {"mrdot_state": 4, "mrlo_state": 5, "dorunrun_state": 8, "idsocc
 # 32-bit int shifts (mra_loader.cpp: binary[i] << (i * 8)), so only bytes 0-2 (and a byte 3 < 0x80) survive.
 PORTS = [("IN0",), ("IN1",), ("IN2",), ("DSW0",), ("DSW1",), ("COIN",)]   # first name present wins
 PORTS_BY_MACHINE = {**{m: [("P1",), ("P2",), ("IN2",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("mrdo", "mrdobl")},
-                    **{m: [("JOYS",), ("BUTTONS",), ("SYSTEM",), ("DSW1",), ("DSW2",), ("JOYS2",)] for m in ("docastle", "dorunrun", "idsoccer")}}
+                    **{m: [("JOYS",), ("BUTTONS",), ("SYSTEM",), ("DSW1",), ("DSW2",), ("JOYS2",)] for m in ("docastle", "dorunrun", "idsoccer")},
+                    **{m: [("IN0",), ("IN1",), ("IN2",), ("DSW1",), ("DSW2",), ("FAKE",)] for m in ("zerohour", "redclash")}}
 
 # control ids (Arcade-Universal.sv)
 CTL = {("JOYSTICK_UP", 1): 1, ("JOYSTICK_DOWN", 1): 2, ("JOYSTICK_LEFT", 1): 3, ("JOYSTICK_RIGHT", 1): 4,
@@ -108,7 +114,8 @@ SERIES_BY_PARENT = {"ladybug": ("Lady Bug", "Maze"), "snapjack": ("Snap Jack", "
                     "mrdo": ("Mr. Do!", "Maze"), "docastle": ("Mr. Do's Castle", "Platform"),
                     "dorunrun": ("Do! Run Run", "Maze"), "dowild": ("Mr. Do's Wild Ride", "Platform"),
                     "jjack": ("Jumping Jack", "Platform"), "kickridr": ("Kick Rider", "Sports"),
-                    "idsoccer": ("Indoor Soccer", "Sports")}
+                    "idsoccer": ("Indoor Soccer", "Sports"), "zerohour": ("Zero Hour", "Shooter"),
+                    "redclash": ("Red Clash", "Shooter")}
 REGION_WORDS = [("US", "US"), ("Japan", "Japan"), ("Spanish", "Spain"), ("Italian", "Italy"), ("French", "France"),
                 ("Brazil", "Brazil"), ("Argentina", "Argentina"), ("Greek", "Greece"), ("Hungarian", "Hungary")]
 
@@ -458,6 +465,8 @@ def hiscore_xml(g):
         return ""
     ents = []
     for line in lines:
+        if line.startswith("@delay="):
+            continue                                   # load delay directive: START_WAIT is measured instead
         f = line.split(",")
         if f[0] != "@:maincpu" or f[1] != "program":
             raise SystemExit(f'{g["name"]}: unsupported hiscore.dat line {line}')

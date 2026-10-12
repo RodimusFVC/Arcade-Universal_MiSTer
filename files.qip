@@ -27,6 +27,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/sraider_overlay.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/crt_flip_fb.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/mrdo/mrdo_board.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/docastle/docastle_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/zerohour/zerohour_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/zerohour/zerohour_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/msm5205.sv
 set_global_assignment -name VHDL_FILE rtl/video/mc6845.vhd
 

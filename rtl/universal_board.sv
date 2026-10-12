@@ -13,6 +13,8 @@
 //  Variant 7: Mr. Do's Castle board, docastle_state map (docastle, Do! Run Run on Castle hardware, runrun)
 //  Variant 8: Mr. Do's Castle board, dorunrun_state map (dorunrun, spiero, dowild, jjack, kickridr)
 //  Variant 9: Mr. Do's Castle board, Indoor Soccer (idsoccer_state: MSM5205 ADPCM, twin joysticks)
+//  Variant 10: Zero Hour (zerohour_state)
+//  Variant 11: Red Clash (redclash_state)
 //
 //  ioctl index 0 (MRA), images stored as dumped, MAME region order:
 //    0x00000 - 0x05FFF  maincpu
@@ -29,6 +31,7 @@
 //    0x3C000 - 0x3C0FF  proms      0x40000 - 0x47FFF  gfx2 (sprites)
 //  Indoor Soccer: gfx2 0x40000 - 0x5FFFF (in the CRT Flip frame buffer RAM), adpcm 0x0000-0x7FFF -> 0x00000,
 //    0x8000-0xFFFF -> 0x10000 (in the Lady Bug / Mr. Do! CPU ROMs, unused on this board)
+//  Zero Hour / Red Clash: maincpu 0x00000, gfx1 0x08000, proms 0x0C000, gfx2 0x40000 (Castle sprite ROM lanes)
 //
 //============================================================================
 
@@ -91,19 +94,20 @@ wire sraider_ovl = (variant == 8'd1);
 wire mrdo        = (variant >= 8'd3) && (variant <= 8'd6);
 wire dcastle     = (variant == 8'd7) || (variant == 8'd8) || (variant == 8'd9);
 wire idsoc       = (variant == 8'd9);
+wire zhour       = (variant == 8'd10) || (variant == 8'd11);
 logic [15:0] dc_adpcm_a;
 logic [16:0] dc_spr8_a;
 logic  [7:0] dc_spr8_d;
 
-logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a;
-logic [11:0] lb_char_a, lb_sprite_a, md_fg_a, md_bg_a;
+logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a, zh_cpu_a;
+logic [11:0] lb_char_a, lb_sprite_a, md_fg_a, md_bg_a, zh_chr_a, zh_spr_a;
 logic  [7:0] rom_cpu_d;
 logic  [7:0] dec_a;
 logic  [7:0] dec_h, dec_l;
 logic [11:0] rom_char_a, rom_sprite_a;
 
-assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : lb_cpu_a;
-assign rom_char_a   = mrdo ? md_fg_a  : lb_char_a;
+assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : zhour ? zh_cpu_a : lb_cpu_a;
+assign rom_char_a   = mrdo ? md_fg_a  : zhour ? zh_chr_a : lb_char_a;
 assign rom_sprite_a = mrdo ? md_bg_a  : lb_sprite_a;
 logic [15:0] rom_char_d, rom_sprite_d;
 
@@ -234,7 +238,7 @@ generate
         dpram_dc #(.widthad_a(12)) rom
         (
             .clock_a(clk), .address_a(ioctl_addr[14:3]), .data_a(ioctl_dout), .wren_a(load_dc_spr && ioctl_addr[2:0] == ln),
-            .clock_b(clk), .address_b(dc_spr_a), .q_b(dc_spr_d[ln*8 +: 8])
+            .clock_b(clk), .address_b(zhour ? zh_spr_a : dc_spr_a), .q_b(dc_spr_d[ln*8 +: 8])
         );
     end
 endgenerate
@@ -258,7 +262,7 @@ logic       ov_hbl, ov_vbl, fb_hbl, fb_vbl;
 ladybug_machine ladybug
 (
     .clk_20mhz_i     (clk),
-    .ext_res_n_i     (~reset & ~mrdo & ~dcastle),
+    .ext_res_n_i     (~reset & ~mrdo & ~dcastle & ~zhour),
     .pause_i         (pause),
     .decrypt_en_i    (rom_dec == 4'd1),
     .p2_follows_p1_i (game_flags2[0]),
@@ -495,17 +499,61 @@ docastle_board docastle_b
     .hs_write     (hs_write & dcastle)
 );
 
+/////////////////////////////  Zero Hour / Red Clash  /////////////////////////////
+
+logic        zh_ce, zh_hs, zh_vs, zh_hbl, zh_vbl;
+logic  [7:0] zh_r, zh_g, zh_b, zh_hs_data;
+logic signed [15:0] zh_audio;
+
+zerohour_board zerohour_b
+(
+    .clk          (clk),
+    .reset        (reset | ~zhour),
+    .pause        (pause),
+    .redclash     (variant == 8'd11),
+    .crt_flip     (crt_flip),
+    .in0          (in0),
+    .in1          (in1),
+    .dsw1         (dsw0),
+    .dsw2         (dsw1),
+    .coin         (coin),
+    .h_adj        (h_adj),
+    .v_adj        (v_adj),
+    .ce_pix       (zh_ce),
+    .video_r      (zh_r),
+    .video_g      (zh_g),
+    .video_b      (zh_b),
+    .video_hs     (zh_hs),
+    .video_vs     (zh_vs),
+    .video_hblank (zh_hbl),
+    .video_vblank (zh_vbl),
+    .audio        (zh_audio),
+    .rom_cpu_a    (zh_cpu_a),
+    .rom_cpu_d    (rom_cpu_d),
+    .rom_chr_a    (zh_chr_a),
+    .rom_chr_d    (rom_char_d[7:0]),
+    .rom_spr_a    (zh_spr_a),
+    .rom_spr_d    (dc_spr_d),
+    .prom_wr      (load_prom),
+    .prom_a       (ioctl_addr[6:0]),
+    .prom_d       (ioctl_dout),
+    .hs_address   (hs_address[10:0]),
+    .hs_data_out  (zh_hs_data),
+    .hs_data_in   (hs_data_in),
+    .hs_write     (hs_write & zhour)
+);
+
 /////////////////////////////  output select  /////////////////////////////
 
-assign ce_pix       = dcastle ? dc_ce    : mrdo ? md_ce    : lb_ce;
-assign video_r      = dcastle ? dc_r     : mrdo ? md_r     : lb_rgb[23:16];
-assign video_g      = dcastle ? dc_g     : mrdo ? md_g     : lb_rgb[15:8];
-assign video_b      = dcastle ? dc_b     : mrdo ? md_b     : lb_rgb[7:0];
-assign video_hblank = dcastle ? dc_hbl   : mrdo ? md_hbl   : fb_hbl;
-assign video_vblank = dcastle ? dc_vbl   : mrdo ? md_vbl   : fb_vbl;
-assign video_hs     = dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
-assign video_vs     = dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
-assign audio        = dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
-assign hs_data_out  = dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
+assign ce_pix       = zhour ? zh_ce    : dcastle ? dc_ce    : mrdo ? md_ce    : lb_ce;
+assign video_r      = zhour ? zh_r     : dcastle ? dc_r     : mrdo ? md_r     : lb_rgb[23:16];
+assign video_g      = zhour ? zh_g     : dcastle ? dc_g     : mrdo ? md_g     : lb_rgb[15:8];
+assign video_b      = zhour ? zh_b     : dcastle ? dc_b     : mrdo ? md_b     : lb_rgb[7:0];
+assign video_hblank = zhour ? zh_hbl   : dcastle ? dc_hbl   : mrdo ? md_hbl   : fb_hbl;
+assign video_vblank = zhour ? zh_vbl   : dcastle ? dc_vbl   : mrdo ? md_vbl   : fb_vbl;
+assign video_hs     = zhour ? zh_hs    : dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
+assign video_vs     = zhour ? zh_vs    : dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
+assign audio        = zhour ? zh_audio : dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
+assign hs_data_out  = zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
 
 endmodule
