@@ -1,0 +1,69 @@
+<misterromdescription>
+    <name>Magical Spot II</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Magical Spot</series>
+    <year>1980</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Shooter</category>
+
+    <setname>magspot2</setname>
+    <parent>magspot2</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>2-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="7F,C9,00">
+        <dip name="Bonus Game" bits="6,7" ids="5000,10000,15000,None" values="1,2,3,0"/>
+        <dip name="Bonus Life" bits="8,9" ids="2000,3000,5000,None" values="1,2,3,0"/>
+        <dip name="Lives" bits="11,12" ids="2,3,4,5"/>
+        <dip name="Cabinet" bits="13" ids="Upright,Cocktail"/>
+        <dip name="Coin A" bits="16,19" ids="4C/1C,3C/1C,4C/2C,2C/1C,3C/2C,4C/3C,4C/4C,3C/3C,2C/2C,1C/1C,3C/4C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="12,8,13,5,9,14,15,10,6,0,11,7,1,2,3,4"/>
+        <dip name="Coin B" bits="20,23" ids="4C/1C,3C/1C,4C/2C,2C/1C,3C/2C,4C/3C,4C/4C,3C/3C,2C/2C,1C/1C,3C/4C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="12,8,13,5,9,14,15,10,6,0,11,7,1,2,3,4"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="magspot2.zip">
+        <part crc="c0085ade" name="ms.e3"/>
+        <part crc="d534a68b" name="ms.e4"/>
+        <part crc="25513b2a" name="ms.e5"/>
+        <part crc="8836bbc4" name="ms.e7"/>
+        <part crc="6a08ab94" name="ms.e6"/>
+        <part crc="77c6d109" name="ms.e8"/>
+        <part repeat="0x5000">00</part>
+        <part crc="89f23ebd" name="ms.e2"/>
+        <part repeat="0x1C00">00</part>
+        <part crc="9e1d63a2" name="ms.n2"/>
+        <part repeat="0x800">00</part>
+        <part crc="1ab338d3" name="ms.n1"/>
+        <part repeat="0x800">00</part>
+        <part crc="36e2aa2a" name="ms.d9"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            0F 14 00 00 7F FF C9 FE 00 FC 00 80 01 80 02 80
+            00 03 00 00 00 04 00 00 00 0B 00 00 00 0C 00 00
+            00 00 00 00 00 00 14 13 00 00 00 00 00 00 0D 05
+            00 00 00 00 00 00 00 00 11 12 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Magical Spot II (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

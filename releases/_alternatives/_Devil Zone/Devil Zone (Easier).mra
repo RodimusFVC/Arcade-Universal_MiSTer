@@ -1,0 +1,73 @@
+<misterromdescription>
+    <name>Devil Zone (Easier)</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Devil Zone</series>
+    <year>1980</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Shooter</category>
+
+    <setname>devzone2</setname>
+    <parent>devzone</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>2-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="DD,00">
+        <dip name="Coinage" bits="2,3" ids="Use Coin A & B,2C/1C,1C/1C,1C/2C" values="3,1,0,2"/>
+        <dip name="Lives" bits="4" ids="2,3"/>
+        <dip name="Cabinet" bits="5" ids="Upright,Cocktail"/>
+        <dip name="Bonus Life" bits="0,1" ids="2000,3000,5000,None" values="1,2,3,0"/>
+        <dip name="Coin A" bits="8,11" ids="4C/1C,3C/1C,4C/2C,2C/1C,3C/2C,4C/3C,4C/4C,3C/3C,2C/2C,1C/1C,3C/4C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="12,8,13,5,9,14,15,10,6,0,11,7,1,2,3,4"/>
+        <dip name="Coin B" bits="12,15" ids="4C/1C,3C/1C,4C/2C,2C/1C,3C/2C,4C/3C,4C/4C,3C/3C,2C/2C,1C/1C,3C/4C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="12,8,13,5,9,14,15,10,6,0,11,7,1,2,3,4"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="devzone2.zip|devzone.zip">
+        <part crc="38bd45a4" name="p10_1.e3"/>
+        <part crc="e1637800" name="my4_2.e4"/>
+        <part crc="c1952e2f" name="ms6_3.e5"/>
+        <part crc="c5394215" name="mx6_5.e7"/>
+        <part crc="5d965d93" name="my1_4.e6"/>
+        <part crc="8504e8c9" name="mz7_6.e8"/>
+        <part repeat="0x5000">00</part>
+        <part crc="693855b6" name="dz9.e2"/>
+        <part repeat="0xC00">00</part>
+        <part crc="f61c1c45" name="ic12.sub"/>
+        <part repeat="0x800">00</part>
+        <part crc="18abce02" name="my8_8.n2"/>
+        <part repeat="0x800">00</part>
+        <part crc="c089c9e3" name="mx3_7.n1"/>
+        <part repeat="0x800">00</part>
+        <part crc="36e2aa2a" name="ms.d9"/>
+        <part repeat="0x20">00</part>
+        <part crc="df974878" name="ic1.sub"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            10 14 00 00 FF FF DD FF 00 FC 80 80 00 80 01 80
+            00 03 00 00 00 04 00 00 00 0B 00 00 00 0C 00 00
+            00 00 00 00 00 00 14 13 00 00 00 00 00 00 0D 05
+            00 00 00 00 00 00 00 00 11 12 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Devil Zone (Easier) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

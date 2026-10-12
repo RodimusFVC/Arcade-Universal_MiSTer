@@ -15,6 +15,8 @@
 //  Variant 9: Mr. Do's Castle board, Indoor Soccer (idsoccer_state: MSM5205 ADPCM, twin joysticks)
 //  Variant 10: Zero Hour (zerohour_state)
 //  Variant 11: Red Clash (redclash_state)
+//  Variant 12: Cheeky Mouse (cheekyms_state)
+//  Variants 13-17: Cosmic boards: Space Panic, Cosmic Alien, Magical Spot, Devil Zone, No Man's Land
 //
 //  ioctl index 0 (MRA), images stored as dumped, MAME region order:
 //    0x00000 - 0x05FFF  maincpu
@@ -32,6 +34,10 @@
 //  Indoor Soccer: gfx2 0x40000 - 0x5FFFF (in the CRT Flip frame buffer RAM), adpcm 0x0000-0x7FFF -> 0x00000,
 //    0x8000-0xFFFF -> 0x10000 (in the Lady Bug / Mr. Do! CPU ROMs, unused on this board)
 //  Zero Hour / Red Clash: maincpu 0x00000, gfx1 0x08000, proms 0x0C000, gfx2 0x40000 (Castle sprite ROM lanes)
+//  Cheeky Mouse: maincpu 0x00000, chars 0x08000 / 0x09000 (cm02 / cm01), sprites 0x0A000 / 0x0B000 (cm07 / cm08),
+//    proms 0x0C000
+//  Cosmic boards: maincpu 0x00000, user1 colour map 0x08000, user2 0x09000, gfx1 0x0A000 / 0x0B000 (halves),
+//    proms 0x0C000, user3 0x0C040; Devil Zone grid frame in the CRT Flip frame buffer RAM
 //
 //============================================================================
 
@@ -95,20 +101,26 @@ wire mrdo        = (variant >= 8'd3) && (variant <= 8'd6);
 wire dcastle     = (variant == 8'd7) || (variant == 8'd8) || (variant == 8'd9);
 wire idsoc       = (variant == 8'd9);
 wire zhour       = (variant == 8'd10) || (variant == 8'd11);
+wire cheeky      = (variant == 8'd12);
+wire cosmic      = (variant >= 8'd13) && (variant <= 8'd17);
+wire cs_grid     = (variant == 8'd16);
 logic [15:0] dc_adpcm_a;
 logic [16:0] dc_spr8_a;
 logic  [7:0] dc_spr8_d;
 
-logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a, zh_cpu_a;
-logic [11:0] lb_char_a, lb_sprite_a, md_fg_a, md_bg_a, zh_chr_a, zh_spr_a;
+logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a, zh_cpu_a, cm_cpu_a, cs_cpu_a;
+logic [11:0] lb_char_a, lb_sprite_a, md_fg_a, md_bg_a, zh_chr_a, zh_spr_a, cm_chr_a, cm_spr_a;
+logic [11:0] cs_cmap_a, cs_u2_a, cs_u2b_a, cs_spr_a;
+logic  [7:0] cs_u2_d, cs_u2b_d;
 logic  [7:0] rom_cpu_d;
 logic  [7:0] dec_a;
 logic  [7:0] dec_h, dec_l;
 logic [11:0] rom_char_a, rom_sprite_a;
 
-assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : zhour ? zh_cpu_a : lb_cpu_a;
-assign rom_char_a   = mrdo ? md_fg_a  : zhour ? zh_chr_a : lb_char_a;
-assign rom_sprite_a = mrdo ? md_bg_a  : lb_sprite_a;
+assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : zhour ? zh_cpu_a : cheeky ? cm_cpu_a :
+                      cosmic ? cs_cpu_a : lb_cpu_a;
+assign rom_char_a   = mrdo ? md_fg_a  : zhour ? zh_chr_a : cheeky ? cm_chr_a : cosmic ? cs_cmap_a : lb_char_a;
+assign rom_sprite_a = mrdo ? md_bg_a  : cheeky ? cm_spr_a : cosmic ? cs_spr_a : lb_sprite_a;
 logic [15:0] rom_char_d, rom_sprite_d;
 
 dpram_dc #(.widthad_a(15)) rom_cpu
@@ -123,11 +135,13 @@ dpram_dc #(.widthad_a(12)) rom_char_l
     .clock_b(clk), .address_b(rom_char_a), .q_b(rom_char_d[7:0])
 );
 
+// Cosmic boards: user2 with two read ports (port A is free once the download is over)
 dpram_dc #(.widthad_a(12)) rom_char_h
 (
-    .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_chh),
-    .clock_b(clk), .address_b(rom_char_a), .q_b(rom_char_d[15:8])
+    .clock_a(clk), .address_a(reset ? ioctl_addr[11:0] : cs_u2b_a), .data_a(ioctl_dout), .wren_a(load_chh), .q_a(cs_u2b_d),
+    .clock_b(clk), .address_b(cosmic ? cs_u2_a : rom_char_a), .q_b(rom_char_d[15:8])
 );
+assign cs_u2_d = rom_char_d[15:8];
 
 dpram_dc #(.widthad_a(12)) rom_sprite_l
 (
@@ -262,7 +276,7 @@ logic       ov_hbl, ov_vbl, fb_hbl, fb_vbl;
 ladybug_machine ladybug
 (
     .clk_20mhz_i     (clk),
-    .ext_res_n_i     (~reset & ~mrdo & ~dcastle & ~zhour),
+    .ext_res_n_i     (~reset & ~mrdo & ~dcastle & ~zhour & ~cheeky & ~cosmic),
     .pause_i         (pause),
     .decrypt_en_i    (rom_dec == 4'd1),
     .p2_follows_p1_i (game_flags2[0]),
@@ -359,11 +373,11 @@ crt_flip_fb flip_fb
     .dout    (fb_code),
     .out_hbl (fb_hbl),
     .out_vbl (fb_vbl),
-    .alt_en  (idsoc),
-    .alt_wa  (ioctl_addr[16:0]),
-    .alt_wd  (ioctl_dout),
-    .alt_we  (ioctl_wr0 && ioctl_addr[24:17] == 8'h02),       // 0x40000-0x5FFFF
-    .alt_ra  (dc_spr8_a),
+    .alt_en  (idsoc || cs_grid),
+    .alt_wa  (cs_grid_we ? {4'd0, cs_grid_wa} : ioctl_addr[16:0]),
+    .alt_wd  (cs_grid_we ? cs_grid_wd : ioctl_dout),
+    .alt_we  ((ioctl_wr0 && ioctl_addr[24:17] == 8'h02) || cs_grid_we),       // 0x40000-0x5FFFF / Devil Zone grid
+    .alt_ra  (idsoc ? dc_spr8_a : {4'd0, cs_grid_ra}),
     .alt_q   (dc_spr8_d)
 );
 
@@ -544,17 +558,123 @@ zerohour_board zerohour_b
     .hs_write     (hs_write & zhour)
 );
 
+/////////////////////////////  Cheeky Mouse  /////////////////////////////
+
+logic        cm_ce, cm_hs, cm_vs, cm_hbl, cm_vbl;
+logic  [7:0] cm_r, cm_g, cm_b, cm_hs_data, cm_p40;
+logic  [1:0] cm_p80;
+logic signed [15:0] cm_audio;
+
+cheekyms_board cheekyms_b
+(
+    .clk          (clk),
+    .reset        (reset | ~cheeky),
+    .pause        (pause),
+    .crt_flip     (crt_flip),
+    .inputs       (in0),
+    .dsw          (dsw0),
+    .coin         (coin),
+    .h_adj        (h_adj),
+    .v_adj        (v_adj),
+    .ce_pix       (cm_ce),
+    .video_r      (cm_r),
+    .video_g      (cm_g),
+    .video_b      (cm_b),
+    .video_hs     (cm_hs),
+    .video_vs     (cm_vs),
+    .video_hblank (cm_hbl),
+    .video_vblank (cm_vbl),
+    .port40       (cm_p40),
+    .port80_snd   (cm_p80),
+    .rom_cpu_a    (cm_cpu_a),
+    .rom_cpu_d    (rom_cpu_d),
+    .rom_chr_a    (cm_chr_a),
+    .rom_chr_d    (rom_char_d),
+    .rom_spr_a    (cm_spr_a),
+    .rom_spr_d    (rom_sprite_d),
+    .prom_wr      (load_prom),
+    .prom_a       (ioctl_addr[6:0]),
+    .prom_d       (ioctl_dout),
+    .hs_address   (hs_address[9:0]),
+    .hs_data_out  (cm_hs_data),
+    .hs_data_in   (hs_data_in),
+    .hs_write     (hs_write & cheeky)
+);
+
+cheekyms_sound cheekyms_snd
+(
+    .clk    (clk),
+    .reset  (reset | ~cheeky),
+    .port40 (cm_p40),
+    .port80 (cm_p80),
+    .audio  (cm_audio)
+);
+
+/////////////////////////////  Cosmic boards  /////////////////////////////
+
+logic        cs_ce, cs_hs, cs_vs, cs_hbl, cs_vbl, cs_grid_we;
+logic  [7:0] cs_r, cs_g, cs_b, cs_grid_wd;
+logic [12:0] cs_grid_wa, cs_grid_ra;
+logic [13:0] cs_snd;
+logic signed [15:0] cs_audio;
+wire   [7:0] cs_kind = variant - 8'd13;
+
+cosmic_board cosmic_b
+(
+    .clk          (clk),
+    .reset        (reset | ~cosmic),
+    .pause        (pause),
+    .kind         (cs_kind[2:0]),
+    .crt_flip     (crt_flip),
+    .in0          (in0),
+    .in1          (in1),
+    .in2          (in2),
+    .dsw0         (dsw0),
+    .dsw1         (dsw1),
+    .coin         (coin),
+    .h_adj        (h_adj),
+    .v_adj        (v_adj),
+    .ce_pix       (cs_ce),
+    .video_r      (cs_r),
+    .video_g      (cs_g),
+    .video_b      (cs_b),
+    .video_hs     (cs_hs),
+    .video_vs     (cs_vs),
+    .video_hblank (cs_hbl),
+    .video_vblank (cs_vbl),
+    .audio        (cs_audio),
+    .snd_trig     (cs_snd),
+    .rom_cpu_a    (cs_cpu_a),
+    .rom_cpu_d    (rom_cpu_d),
+    .rom_cmap_a   (cs_cmap_a),
+    .rom_cmap_d   (rom_char_d[7:0]),
+    .rom_u2_a     (cs_u2_a),
+    .rom_u2_d     (cs_u2_d),
+    .rom_u2b_a    (cs_u2b_a),
+    .rom_u2b_d    (cs_u2b_d),
+    .rom_spr_a    (cs_spr_a),
+    .rom_spr_d    (rom_sprite_d),
+    .prom_wr      (load_prom),
+    .prom_a       (ioctl_addr[6:0]),
+    .prom_d       (ioctl_dout),
+    .grid_wa      (cs_grid_wa),
+    .grid_wd      (cs_grid_wd),
+    .grid_we      (cs_grid_we),
+    .grid_ra      (cs_grid_ra),
+    .grid_q       (dc_spr8_d)
+);
+
 /////////////////////////////  output select  /////////////////////////////
 
-assign ce_pix       = zhour ? zh_ce    : dcastle ? dc_ce    : mrdo ? md_ce    : lb_ce;
-assign video_r      = zhour ? zh_r     : dcastle ? dc_r     : mrdo ? md_r     : lb_rgb[23:16];
-assign video_g      = zhour ? zh_g     : dcastle ? dc_g     : mrdo ? md_g     : lb_rgb[15:8];
-assign video_b      = zhour ? zh_b     : dcastle ? dc_b     : mrdo ? md_b     : lb_rgb[7:0];
-assign video_hblank = zhour ? zh_hbl   : dcastle ? dc_hbl   : mrdo ? md_hbl   : fb_hbl;
-assign video_vblank = zhour ? zh_vbl   : dcastle ? dc_vbl   : mrdo ? md_vbl   : fb_vbl;
-assign video_hs     = zhour ? zh_hs    : dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
-assign video_vs     = zhour ? zh_vs    : dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
-assign audio        = zhour ? zh_audio : dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
-assign hs_data_out  = zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
+assign ce_pix       = cosmic ? cs_ce    : cheeky ? cm_ce    : zhour ? zh_ce    : dcastle ? dc_ce    : mrdo ? md_ce    : lb_ce;
+assign video_r      = cosmic ? cs_r     : cheeky ? cm_r     : zhour ? zh_r     : dcastle ? dc_r     : mrdo ? md_r     : lb_rgb[23:16];
+assign video_g      = cosmic ? cs_g     : cheeky ? cm_g     : zhour ? zh_g     : dcastle ? dc_g     : mrdo ? md_g     : lb_rgb[15:8];
+assign video_b      = cosmic ? cs_b     : cheeky ? cm_b     : zhour ? zh_b     : dcastle ? dc_b     : mrdo ? md_b     : lb_rgb[7:0];
+assign video_hblank = cosmic ? cs_hbl   : cheeky ? cm_hbl   : zhour ? zh_hbl   : dcastle ? dc_hbl   : mrdo ? md_hbl   : fb_hbl;
+assign video_vblank = cosmic ? cs_vbl   : cheeky ? cm_vbl   : zhour ? zh_vbl   : dcastle ? dc_vbl   : mrdo ? md_vbl   : fb_vbl;
+assign video_hs     = cosmic ? cs_hs    : cheeky ? cm_hs    : zhour ? zh_hs    : dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
+assign video_vs     = cosmic ? cs_vs    : cheeky ? cm_vs    : zhour ? zh_vs    : dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
+assign audio        = cosmic ? cs_audio : cheeky ? cm_audio : zhour ? zh_audio : dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
+assign hs_data_out  = cosmic ? 8'd0 : cheeky ? cm_hs_data : zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
 
 endmodule

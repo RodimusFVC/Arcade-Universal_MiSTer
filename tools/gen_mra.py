@@ -50,9 +50,20 @@ REGION_OVERRIDE = {**{m: {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x3000
                                 "adpcm": "split"},
                    # Zero Hour / Red Clash: gfx2 in the Castle sprite ROM lanes (64-bit rows); gfx3 is MAME's rearranged
                    # copy of gfx2, decoded on read
-                   **{m: {"gfx2": (0, 0x40000, 0x02000), "gfx3": None} for m in ("zerohour", "redclash")}}
+                   **{m: {"gfx2": (0, 0x40000, 0x02000), "gfx3": None} for m in ("zerohour", "redclash")},
+                   # Cheeky Mouse: the two bitplanes of each gfx region in the Lady Bug byte-lane ROMs (one 2-bit read)
+                   "cheekyms": {"chars": "split", "sprites": "split"},
+                   # Cosmic boards: colour map / user2 in the Lady Bug char ROMs, the two bitplane halves of gfx1 in
+                   # the sprite ROMs (one 2-bit read), user3 (grid columns) next to the PROMs
+                   **{m: {"gfx1": "split", "user1": (0, 0x08000, 0x00800), "user2": (0, 0x09000, 0x00800),
+                          "user3": (0, 0x0C040, 0x00020)} for m in ("panic", "cosmica", "magspot", "devzone", "nomnlnd")}}
 # region -> [(region offset, length, index-0 base)] for regions spread over two board RAMs
-REGION_SPLIT = {"idsoccer": {"adpcm": [(0x0000, 0x8000, 0x00000), (0x8000, 0x8000, 0x10000)]}}
+REGION_SPLIT = {"idsoccer": {"adpcm": [(0x0000, 0x8000, 0x00000), (0x8000, 0x8000, 0x10000)]},
+                "cheekyms": {"chars":   [(0x000, 0x800, 0x08000), (0x800, 0x800, 0x09000)],
+                             "sprites": [(0x000, 0x800, 0x0A000), (0x800, 0x800, 0x0B000)]},
+                "panic":    {"gfx1": [(0x0000, 0x1000, 0x0A000), (0x1000, 0x1000, 0x0B000)]},
+                **{m: {"gfx1": [(0x000, 0x800, 0x0A000), (0x800, 0x800, 0x0B000)]}
+                   for m in ("cosmica", "magspot", "devzone", "nomnlnd")}}
 
 IGNORED_REGIONS = {"pal16r6"}                       # Mr. Do! U001: modelled in rtl/mrdo/mrdo_board.sv
 
@@ -69,6 +80,12 @@ SUPPORTED = {
     ("idsoccer", "empty_init"): 9,
     ("zerohour", "init_zerohour"): 10,
     ("redclash", "init_zerohour"): 11,
+    ("cheekyms", "empty_init"): 12,
+    ("panic", "init_panic"): 13,
+    ("cosmica", "init_cosmica"): 14,
+    ("magspot", "empty_init"): 15,
+    ("devzone", "init_devzone"): 16,
+    ("nomnlnd", "init_nomnlnd"): 17,
 }
 
 # init -> (index 1 byte 2 CPU ROM decode, unused)
@@ -89,7 +106,12 @@ STATE_VARIANT = {"mrdot_state": 4, "mrlo_state": 5, "dorunrun_state": 8, "idsocc
 PORTS = [("IN0",), ("IN1",), ("IN2",), ("DSW0",), ("DSW1",), ("COIN",)]   # first name present wins
 PORTS_BY_MACHINE = {**{m: [("P1",), ("P2",), ("IN2",), ("DSW1",), ("DSW2",), ("COIN",)] for m in ("mrdo", "mrdobl")},
                     **{m: [("JOYS",), ("BUTTONS",), ("SYSTEM",), ("DSW1",), ("DSW2",), ("JOYS2",)] for m in ("docastle", "dorunrun", "idsoccer")},
-                    **{m: [("IN0",), ("IN1",), ("IN2",), ("DSW1",), ("DSW2",), ("FAKE",)] for m in ("zerohour", "redclash")}}
+                    **{m: [("IN0",), ("IN1",), ("IN2",), ("DSW1",), ("DSW2",), ("FAKE",)] for m in ("zerohour", "redclash")},
+                    "cheekyms": [("INPUTS",), ("IN1",), ("IN2",), ("DSW",), ("DSW1",), ("COIN",)],
+                    "panic":    [("P1",), ("P2",), ("SYSTEM",), ("DSW",), ("DSW1",), ("COIN",)],
+                    "cosmica":  [("P1",), ("P2",), ("IN2",), ("DSW",), ("DSW1",), ("FAKE",)],
+                    **{m: [("IN0",), ("IN1",), ("IN2",), ("IN3",), ("DSW",), ("COINS", "COIN")]
+                       for m in ("magspot", "devzone", "nomnlnd")}}
 
 # control ids (Arcade-Universal.sv)
 CTL = {("JOYSTICK_UP", 1): 1, ("JOYSTICK_DOWN", 1): 2, ("JOYSTICK_LEFT", 1): 3, ("JOYSTICK_RIGHT", 1): 4,
@@ -115,7 +137,10 @@ SERIES_BY_PARENT = {"ladybug": ("Lady Bug", "Maze"), "snapjack": ("Snap Jack", "
                     "dorunrun": ("Do! Run Run", "Maze"), "dowild": ("Mr. Do's Wild Ride", "Platform"),
                     "jjack": ("Jumping Jack", "Platform"), "kickridr": ("Kick Rider", "Sports"),
                     "idsoccer": ("Indoor Soccer", "Sports"), "zerohour": ("Zero Hour", "Shooter"),
-                    "redclash": ("Red Clash", "Shooter")}
+                    "redclash": ("Red Clash", "Shooter"), "cheekyms": ("Cheeky Mouse", "Action"),
+                    "panic": ("Space Panic", "Platform"), "cosmica": ("Cosmic Alien", "Shooter"),
+                    "magspot": ("Magical Spot", "Shooter"), "magspot2": ("Magical Spot", "Shooter"),
+                    "devzone": ("Devil Zone", "Shooter"), "nomnlnd": ("No Man's Land", "Shooter")}
 REGION_WORDS = [("US", "US"), ("Japan", "Japan"), ("Spanish", "Spain"), ("Italian", "Italy"), ("French", "France"),
                 ("Brazil", "Brazil"), ("Argentina", "Argentina"), ("Greek", "Greece"), ("Hungarian", "Hungary")]
 
@@ -299,7 +324,7 @@ def parse_inputs(src):
                 fld["twoway"] = True
             elif mac in ("PORT_DIPLOCATION", "PORT_CODE", "PORT_8WAY", "PORT_CONDITION",
                          "PORT_SENSITIVITY", "PORT_KEYDELTA", "PORT_READ_LINE_DEVICE_MEMBER",
-                         "PORT_CHANGED_MEMBER"):
+                         "PORT_CHANGED_MEMBER", "PORT_WRITE_LINE_DEVICE_MEMBER"):
                 pass
             elif mac == "PORT_CUSTOM_MEMBER":
                 fld["custom"] = re.sub(r".*::", "", args[0]).rstrip(")")

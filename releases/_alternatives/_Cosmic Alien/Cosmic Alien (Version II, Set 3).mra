@@ -1,0 +1,68 @@
+<misterromdescription>
+    <name>Cosmic Alien (Version II, Set 3)</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Cosmic Alien</series>
+    <year>1979</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Shooter</category>
+
+    <setname>cosmica23</setname>
+    <parent>cosmica</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>2-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="FE">
+        <dip name="Cabinet" bits="0" ids="Upright,Cocktail"/>
+        <dip name="Lives" bits="1" ids="3,5" values="1,0"/>
+        <dip name="Coinage" bits="2,3" ids="2C/1C,1C/1C,1C/2C" values="2,3,1"/>
+        <dip name="Bonus Life" bits="4,5" ids="5000,10000,15000,None" values="3,2,1,0"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="cosmica23.zip|cosmica.zip">
+        <part crc="2303333f" name="1-al2019-2516.e3"/>
+        <part crc="20710582" name="2-al202a-2516.e4"/>
+        <part crc="b25d24b4" name="3-al2019-2516.e5"/>
+        <part crc="51834cd9" name="4-2516.e6"/>
+        <part crc="e2b6680f" name="5-al2019-2516.e7"/>
+        <part repeat="0x5800">00</part>
+        <part crc="ea4ee931" name="9-4708-2708.e2"/>
+        <part repeat="0xC00">00</part>
+        <part crc="acbd4e98" name="8-2708.k3"/>
+        <part repeat="0xC00">00</part>
+        <part crc="aa6c6079" name="7-2716.n2"/>
+        <part repeat="0x800">00</part>
+        <part crc="431e866c" name="6-2516.n1"/>
+        <part repeat="0x800">00</part>
+        <part crc="dfb60f19" name="mmi-6331.d9"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            0E 10 00 00 FF FF FF FE FF FE 80 80 80 00 80 80
+            05 04 03 00 00 00 00 00 0D 0C 0B 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 14 13
+            00 00 00 00 00 00 00 00 11 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Cosmic Alien (Version II, Set 3) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

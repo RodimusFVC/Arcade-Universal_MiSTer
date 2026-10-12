@@ -1,0 +1,69 @@
+<misterromdescription>
+    <name>Space Panic (Set 3)</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Space Panic</series>
+    <year>1980</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Platform</category>
+
+    <setname>panic3</setname>
+    <parent>panic</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>2</num_buttons>
+    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="40">
+        <dip name="Coin A" bits="0,2" ids="1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="0,5,1,2,3,4"/>
+        <dip name="Cabinet" bits="3" ids="Upright,Cocktail"/>
+        <dip name="Bonus Life" bits="4" ids="3000,5000"/>
+        <dip name="Lives" bits="5" ids="3,4"/>
+        <dip name="Coin B" bits="6,7" ids="2C/1C,1C/1C,1C/2C,1C/3C"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="panic3.zip|panic.zip">
+        <part crc="289720ce" name="panica.1"/>
+        <part crc="b6a286c5" name="spcpanic.2"/>
+        <part crc="85ae8b2e" name="spcpanic.3"/>
+        <part crc="b6d4f52f" name="spcpanic.4"/>
+        <part crc="5b80f277" name="spcpanic.5"/>
+        <part crc="b73babf0" name="spcpanic.6"/>
+        <part crc="3641cb7f" name="panica.7"/>
+        <part repeat="0x4800">00</part>
+        <part crc="7da0b321" name="spcpanic.8"/>
+        <part repeat="0x1800">00</part>
+        <part crc="acea9df4" name="spcpanic.11"/>
+        <part crc="e83423d0" name="spcpanic.12"/>
+        <part crc="c9631c2d" name="spcpanic.10"/>
+        <part crc="eec78b4c" name="spcpanic.9"/>
+        <part crc="35d43d2f" name="82s123.sp"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            0D 11 00 00 FF FF FF 40 FF FF 80 80 80 00 80 80
+            05 04 03 02 01 00 00 06 0D 0C 0B 0A 09 00 00 0E
+            13 14 00 00 00 00 11 12 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Space Panic (Set 3) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>
