@@ -1,0 +1,72 @@
+<misterromdescription>
+    <name>Dorodon (Set 2)</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Dorodon</series>
+    <year>1982</year>
+    <manufacturer>UPL (Falcon license?)</manufacturer>
+    <category>Maze</category>
+
+    <setname>dorodon2</setname>
+    <parent>dorodon</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>0</num_buttons>
+    <buttons names="Not Used,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="DF,FF">
+        <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="Bonus Life" bits="2" ids="20000,30000" values="1,0"/>
+        <dip name="Rack Test (Cheat)" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Freeze" bits="4" ids="Off,On" values="1,0"/>
+        <dip name="Cabinet" bits="5" ids="Upright,Cocktail"/>
+        <dip name="Free Play" bits="6" ids="No,Yes" values="1,0"/>
+        <dip name="Lives" bits="7" ids="3,5" values="1,0"/>
+        <dip name="Coin B" bits="8,11" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
+        <dip name="Coin A" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="dorodon2.zip|dorodon.zip">
+        <part crc="4d05d6f8" name="1.3fg"/>
+        <part crc="27b43b09" name="2.3h"/>
+        <part crc="38d2f295" name="3.3k"/>
+        <part repeat="0x2000">00</part>
+        <part crc="2a2d8b9c" name="6.6a"/>
+        <part crc="d14f95fa" name="7.6bc"/>
+        <part crc="54c04f58" name="5.3t"/>
+        <part crc="1ebb6493" name="4.3r"/>
+        <part crc="8fcf0bc8" name="dorodon.bp0"/>
+        <part crc="3f209be4" name="dorodon.bp1"/>
+        <part crc="27fa3a50" name="dorodon.bp2"/>
+        <part repeat="0xA0">00</part>
+        <part crc="f865c135" name="dorodon.bp4"/>
+        <part crc="47b2f0bb" name="dorodon.bp3"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            00 11 01 00 FF 7F FF DF FF FC 80 80 80 00 01 80
+            03 02 04 01 00 13 14 15 0B 0A 0C 09 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 24 00 00 00 00
+            00 00 00 00 00 00 00 00 11 12 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Dorodon (Set 2) (UPL (Falcon License?))</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

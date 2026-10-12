@@ -1,0 +1,32 @@
+set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
+
+set_global_assignment -name SYSTEMVERILOG_FILE Arcade-Universal.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/universal_board.sv
+
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_machine.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_clk.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_res.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_cpu_unit.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_addr_dec.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_gpio.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_chute.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_chutes.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_rams.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_video_unit.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_video_timing.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_counter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_char.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_sprite.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_sprite_ctrl.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_rgb.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ttl_175.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ttl_393.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_sound_unit.sv
+
+set_global_assignment -name QIP_FILE rtl/cpu/T80/T80.qip
+set_global_assignment -name QIP_FILE rtl/sound/jt89/syn/quartus/jt89_verilog.qip
+
+set_global_assignment -name VERILOG_FILE rtl/mister_custom/pause.v
+set_global_assignment -name VERILOG_FILE rtl/mister_custom/hiscore.v
+
+set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd

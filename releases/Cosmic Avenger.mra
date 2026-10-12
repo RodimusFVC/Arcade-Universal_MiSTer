@@ -1,0 +1,70 @@
+<misterromdescription>
+    <name>Cosmic Avenger</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Cosmic Avenger</series>
+    <year>1981</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Shooter</category>
+
+    <setname>cavenger</setname>
+    <parent>cavenger</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>horizontal</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>8-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>2</num_buttons>
+    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="C7,FF">
+        <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="High Score Names" bits="2" ids="3 Letters,10 Letters"/>
+        <dip name="Cabinet" bits="3" ids="Upright,Cocktail"/>
+        <dip name="Initial High Score" bits="4,5" ids="0,5000,8000,10000" values="0,3,2,1"/>
+        <dip name="Lives" bits="6,7" ids="2,3,4,5" values="0,3,2,1"/>
+        <dip name="Coin B" bits="8,11" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
+        <dip name="Coin A" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="cavenger.zip">
+        <part crc="9e0cc781" name="1.c4"/>
+        <part crc="5ce5b950" name="2.d4"/>
+        <part crc="bc28218d" name="3.e4"/>
+        <part crc="2b32e9f5" name="4.h4"/>
+        <part crc="d117153e" name="5.j4"/>
+        <part crc="c7d366cb" name="6.k4"/>
+        <part repeat="0x2000">00</part>
+        <part crc="63357785" name="9.f7"/>
+        <part crc="52ad1133" name="0.h7"/>
+        <part crc="b022bf2d" name="8.l7"/>
+        <part repeat="0x1000">00</part>
+        <part crc="42a24dd5" name="10-2.k1"/>
+        <part crc="d736b8de" name="10-1.f4"/>
+        <part crc="27fa3a50" name="10-3.c4"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            00 00 00 00 FF 7F FF C7 FF FC 80 80 80 00 01 80
+            03 02 04 01 05 13 14 15 0B 0A 0C 09 0D 00 00 00
+            06 0E 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 11 12 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Cosmic Avenger (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

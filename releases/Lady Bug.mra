@@ -1,0 +1,72 @@
+<misterromdescription>
+    <name>Lady Bug</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Lady Bug</series>
+    <year>1981</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Maze</category>
+
+    <setname>ladybug</setname>
+    <parent>ladybug</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>4-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>0</num_buttons>
+    <buttons names="Not Used,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="DF,FF">
+        <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
+        <dip name="High Score Names" bits="2" ids="3 Letters,10 Letters"/>
+        <dip name="Rack Test (Cheat)" bits="3" ids="Off,On" values="1,0"/>
+        <dip name="Freeze" bits="4" ids="Off,On" values="1,0"/>
+        <dip name="Cabinet" bits="5" ids="Upright,Cocktail"/>
+        <dip name="Free Play" bits="6" ids="No,Yes" values="1,0"/>
+        <dip name="Lives" bits="7" ids="3,5" values="1,0"/>
+        <dip name="Coin B" bits="8,11" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
+        <dip name="Coin A" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="ladybug.zip">
+        <part crc="d09e0adb" name="l1.c4"/>
+        <part crc="88bc4a0a" name="l2.d4"/>
+        <part crc="53e9efce" name="l3.e4"/>
+        <part crc="ffc424d7" name="l4.h4"/>
+        <part crc="ad6af809" name="l5.j4"/>
+        <part crc="cf1acca4" name="l6.k4"/>
+        <part repeat="0x2000">00</part>
+        <part crc="77b1da1e" name="l9.f7"/>
+        <part crc="aa82e00b" name="l0.h7"/>
+        <part crc="8b99910b" name="l8.l7"/>
+        <part crc="86a5b448" name="l7.m7"/>
+        <part crc="df091e52" name="10-2.k1"/>
+        <part crc="40640d8f" name="10-1.f4"/>
+        <part crc="27fa3a50" name="10-3.c4"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            00 11 00 01 FF 7F FF DF FF FC 80 80 80 00 01 80
+            03 02 04 01 00 13 14 15 0B 0A 0C 09 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 24 00 00 00 00
+            00 00 00 00 00 00 00 00 11 12 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Lady Bug (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>
