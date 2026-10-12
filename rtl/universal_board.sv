@@ -350,6 +350,7 @@ sraider_overlay overlay
 crt_flip_fb flip_fb
 (
     .clk     (clk),
+    .reset   (reset),
     .ce_pix  (lb_ce),
     .en      (crt_flip),
     .din     (ov_code),

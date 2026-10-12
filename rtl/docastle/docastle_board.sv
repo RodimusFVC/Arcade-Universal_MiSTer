@@ -309,8 +309,11 @@ msm5205 adpcm
 
 // mix: 4x SN76489A at 0.25, MSM5205 at 0.40 (MAME routes)
 // SN: jt89 channel +/-255 x4 = MAME 0x7fff/4 x 0.25 per channel; MSM: MAME 2047/4096 x 0.40 of full scale = x3.2
-wire signed [16:0] adp_w = {{5{adp_sig[11]}}, adp_sig} * 17'sd13;
-wire signed [16:0] mix = {{4{snd_sum[12]}}, snd_sum} * 17'sd4 + (idsoccer ? (adp_w >>> 2) : 17'sd0);
+// every operand explicitly signed: with an unsigned concatenation in the sum, the LRM makes 'adp_w >>> 2' a logical shift
+wire signed [16:0] adp_w = $signed({{5{adp_sig[11]}}, adp_sig}) * 17'sd13;
+wire signed [16:0] adp_s = adp_w >>> 2;
+wire signed [16:0] sn_w  = $signed({{4{snd_sum[12]}}, snd_sum}) * 17'sd4;
+wire signed [16:0] mix   = sn_w + (idsoccer ? adp_s : 17'sd0);
 assign audio = (mix > 17'sd32767) ? 16'sd32767 : (mix < -17'sd32768) ? -16'sd32768 : mix[15:0];
 
 // ------------------------------------------------------------------ CRTC
