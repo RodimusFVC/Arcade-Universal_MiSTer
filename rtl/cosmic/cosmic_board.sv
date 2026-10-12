@@ -189,10 +189,11 @@ wire spr_cs = pc_spr || mg_spr;
 assign rom_cpu_a = {1'b0, a[13:0]};
 
 logic       flip = 1'b0, bg_en = 1'b0, dac = 1'b0;
+logic [15:0] mg_snd = 16'd0;                                        // magspot family: LS259s latch D7 of 4800-480F
 logic [2:0] creg = 3'd0;
 always_ff @(posedge clk) begin
     if (reset) begin
-        flip <= 1'b0; bg_en <= 1'b0; dac <= 1'b0; creg <= 3'd0; snd_trig <= 14'd0;
+        flip <= 1'b0; bg_en <= 1'b0; dac <= 1'b0; creg <= 3'd0; snd_trig <= 14'd0; mg_snd <= 16'd0;
     end
     else if (wr) begin
         if (pc_snd)  snd_trig[a[3:0]] <= (dout != 8'd0);
@@ -201,6 +202,7 @@ always_ff @(posedge clk) begin
         if (pc_col)  creg[a[1:0]] <= (dout != 8'd0);
         if (pc_flip) flip <= dout[7];
         if (mg_io) begin
+            mg_snd[a[3:0]] <= dout[7];
             if (a[3:0] == (k_nml ? 4'd10 : 4'd0)) dac <= dout[7];
             if (a[3:0] == 4'd7 && (k_dev || k_nml)) bg_en <= dout != 8'd0;
             if (a[3:1] == 3'd6) creg[{1'b0, a[0]}] <= (dout != 8'd0);
@@ -209,7 +211,7 @@ always_ff @(posedge clk) begin
     end
 end
 
-// Space Panic: 8015 sound board (rtl/cosmic/panic_sound.sv); magspot family: the 1-bit DAC only so far
+// Space Panic: 8015 sound board (rtl/cosmic/panic_sound.sv)
 logic signed [15:0] panic_snd;
 panic_sound panic_snd_b
 (
@@ -230,7 +232,25 @@ cosmica_sound cosa_snd_b
     .coin   (coin[0]),
     .audio  (cosa_snd)
 );
-assign audio = k_panic ? panic_snd : k_cosa ? cosa_snd : dac ? 16'sd8192 : 16'sd0;
+// Magical Spot / Devil Zone: 8013 / 8022 sound board; No Man's Land: 8003 (rtl/cosmic/magspot_sound.sv, nomnlnd_sound.sv)
+logic signed [15:0] ms_snd, nml_snd;
+magspot_sound ms_snd_b
+(
+    .clk     (clk),
+    .reset   (reset | ~(k_mag & ~k_nml)),
+    .snd     (mg_snd),
+    .coin_sw (coin[0] | coin[1]),
+    .audio   (ms_snd)
+);
+nomnlnd_sound nml_snd_b
+(
+    .clk     (clk),
+    .reset   (reset | ~k_nml),
+    .snd     (mg_snd),
+    .coin_sw (coin[0]),
+    .audio   (nml_snd)
+);
+assign audio = k_panic ? panic_snd : k_cosa ? cosa_snd : k_nml ? nml_snd : ms_snd;
 
 // interrupts
 logic [1:0] coin_d = 2'b00;
@@ -492,7 +512,7 @@ always_ff @(posedge clk) begin
 
         if (k_nml && bg_en && tree_c != 3'd0)  begin s2_c <= {1'b0, tree_c}; s2_pal <= 2'd3; end   // over everything
         else if (lbq[6])                       begin s2_c <= sp_c;            s2_pal <= pal_k; end
-        else if (bm_on)                        begin s2_c <= bm_pen;          s2_pal <= (bm_pen == 4'hF && !k_cosa) ? 2'd0 : pal_k; end
+        else if (bm_on)                        begin s2_c <= bm_pen;          s2_pal <= pal_k; end   // pen 15 = colour 15 (MAME pen % indirect)
         else if (star_on)                      begin s2_c <= {1'b0, star_c};  s2_pal <= 2'd2; end
         else if (grid_on)                      begin s2_c <= 4'd4;            s2_pal <= 2'd3; end
         else                                   begin s2_c <= 4'd0;            s2_pal <= 2'd0; end

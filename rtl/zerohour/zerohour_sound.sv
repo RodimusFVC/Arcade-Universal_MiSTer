@@ -292,4 +292,6 @@ wire signed [31:0] y  = vclip(mix - v[HPF], -V5_25, V5_25);
 wire signed [45:0] yo = y * 14'sd5617;                    // 5.25 V -> 0.9 full scale
 always_ff @(posedge clk) audio <= yo[39:24];
 
+`undef AST
+
 endmodule

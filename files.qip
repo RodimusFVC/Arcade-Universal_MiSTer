@@ -34,6 +34,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/cheekyms/cheekyms_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/cosmic_board.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/panic_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/cosmica_sound.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/magspot_sound.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/nomnlnd_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/msm5205.sv
 set_global_assignment -name VHDL_FILE rtl/video/mc6845.vhd
 

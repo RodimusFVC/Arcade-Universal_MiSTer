@@ -197,4 +197,6 @@ wire signed [49:0] yo = y * 18'sd150000;
 wire signed [25:0] yh = yo[49:24];                        // part-selects are unsigned: compare a signed copy
 always_ff @(posedge clk) audio <= (yh > 26'sd32767) ? 16'sd32767 : (yh < -26'sd32768) ? -16'sd32768 : yh[15:0];
 
+`undef AST
+
 endmodule
