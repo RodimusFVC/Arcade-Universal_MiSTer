@@ -56,7 +56,12 @@ REGION_OVERRIDE = {**{m: {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x3000
                    # Cosmic boards: colour map / user2 in the Lady Bug char ROMs, the two bitplane halves of gfx1 in
                    # the sprite ROMs (one 2-bit read), user3 (grid columns) next to the PROMs
                    **{m: {"gfx1": "split", "user1": (0, 0x08000, 0x00800), "user2": (0, 0x09000, 0x00800),
-                          "user3": (0, 0x0C040, 0x00020)} for m in ("panic", "cosmica", "magspot", "devzone", "nomnlnd")}}
+                          "user3": (0, 0x0C040, 0x00020)} for m in ("panic", "cosmica", "magspot", "devzone", "nomnlnd")},
+                   # TMS99xx boards: Cosmic Guerilla colour map in the Lady Bug char ROM; Get A Way 16-bit program as
+                   # high / low byte planes (ROM_LOAD16_BYTE), blitter gfx in the two char ROMs
+                   "cosmicg": {"program": (0, 0x00000, 0x02000), "colormap": (0, 0x08000, 0x00400)},
+                   "getaway": {"maincpu_hi": (0, 0x00000, 0x02000), "maincpu_lo": (0, 0x02000, 0x02000),
+                               "gfx": (0, 0x08000, 0x02000)}}
 # region -> [(region offset, length, index-0 base)] for regions spread over two board RAMs
 REGION_SPLIT = {"idsoccer": {"adpcm": [(0x0000, 0x8000, 0x00000), (0x8000, 0x8000, 0x10000)]},
                 "cheekyms": {"chars":   [(0x000, 0x800, 0x08000), (0x800, 0x800, 0x09000)],
@@ -86,6 +91,8 @@ SUPPORTED = {
     ("magspot", "empty_init"): 15,
     ("devzone", "init_devzone"): 16,
     ("nomnlnd", "init_nomnlnd"): 17,
+    ("cosmicg", "init_cosmicg"): 18,
+    ("getaway", "empty_init"): 19,
 }
 
 # init -> (index 1 byte 2 CPU ROM decode, unused)
@@ -111,7 +118,25 @@ PORTS_BY_MACHINE = {**{m: [("P1",), ("P2",), ("IN2",), ("DSW1",), ("DSW2",), ("C
                     "panic":    [("P1",), ("P2",), ("SYSTEM",), ("DSW",), ("DSW1",), ("COIN",)],
                     "cosmica":  [("P1",), ("P2",), ("IN2",), ("DSW",), ("DSW1",), ("FAKE",)],
                     **{m: [("IN0",), ("IN1",), ("IN2",), ("IN3",), ("DSW",), ("COINS", "COIN")]
-                       for m in ("magspot", "devzone", "nomnlnd")}}
+                       for m in ("magspot", "devzone", "nomnlnd")},
+                    "getaway":  [("IN.0",), ("CTRL",), ("IN2",), ("DSW",), ("DSWH",), ("COIN",)]}
+
+
+def getaway_ports(ports):
+    """Get A Way: pedal / wheel become digital controls (board ramps them); the 11-bit DSW is split over two bytes."""
+    ctl = [dict(mask=m, kind="input", default=m, type=t, player=1, name=n, settings=[], fourway=False, twoway=tw)
+           for m, t, n, tw in ((0x01, "BUTTON1", "Accelerate", False), (0x02, "JOYSTICK_LEFT", None, True),
+                               (0x04, "JOYSTICK_RIGHT", None, True))]
+    lo = [f for f in ports["DSW"] if f["mask"] & 0xFF]
+    hi = [dict(f, mask=f["mask"] >> 8, default=f["default"] >> 8, settings=[(v >> 8, n) for v, n in f["settings"]])
+          for f in ports["DSW"] if not f["mask"] & 0xFF]
+    spill = sum(f["mask"] for f in lo) >> 8                    # bits 8+ of fields that start in the low byte
+    dflt = sum(f["default"] & f["mask"] for f in lo) >> 8
+    hi.append(dict(mask=spill, kind="unused", default=dflt))
+    return {"IN.0": ports["IN.0"], "CTRL": ctl, "DSW": lo, "DSWH": hi}
+
+
+PORT_REWRITE = {"getaway": getaway_ports}
 
 # control ids (Arcade-Universal.sv)
 CTL = {("JOYSTICK_UP", 1): 1, ("JOYSTICK_DOWN", 1): 2, ("JOYSTICK_LEFT", 1): 3, ("JOYSTICK_RIGHT", 1): 4,
@@ -140,20 +165,22 @@ SERIES_BY_PARENT = {"ladybug": ("Lady Bug", "Maze"), "snapjack": ("Snap Jack", "
                     "redclash": ("Red Clash", "Shooter"), "cheekyms": ("Cheeky Mouse", "Action"),
                     "panic": ("Space Panic", "Platform"), "cosmica": ("Cosmic Alien", "Shooter"),
                     "magspot": ("Magical Spot", "Shooter"), "magspot2": ("Magical Spot", "Shooter"),
-                    "devzone": ("Devil Zone", "Shooter"), "nomnlnd": ("No Man's Land", "Shooter")}
+                    "devzone": ("Devil Zone", "Shooter"), "nomnlnd": ("No Man's Land", "Shooter"),
+                    "cosmicg": ("Cosmic Guerilla", "Shooter"), "getaway": ("Get A Way", "Driving")}
 REGION_WORDS = [("US", "US"), ("Japan", "Japan"), ("Spanish", "Spain"), ("Italian", "Italy"), ("French", "France"),
                 ("Brazil", "Brazil"), ("Argentina", "Argentina"), ("Greek", "Greece"), ("Hungarian", "Hungary")]
 
 # ---------------------------------------------------------------- parsing
 
 GAME_RE = re.compile(r'^GAME\(\s*([\w?]+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(\w+),\s*(ROT\d+),\s*"([^"]*)",\s*"([^"]*)",\s*([^)]*)\)', re.M)
+LOAD16_RE = re.compile(r'ROM_LOAD16_BYTE\(\s*"([^"]+)",\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+),\s*CRC\(([0-9a-fA-F]+)\)')
 LOAD_RE = re.compile(r'ROM_LOAD\(\s*"([^"]+)",\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+),\s*(?:BAD_DUMP\s+)?CRC\(([0-9a-fA-F]+)\)')
 CONT_RE = re.compile(r'ROM_CONTINUE\(\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+)\s*\)')
 NIB_RE = re.compile(r'ROM_LOAD_NIB_(LOW|HIGH)\s*\(\s*"([^"]+)",\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+),\s*CRC\(([0-9a-fA-F]+)\)')
 RELOAD_RE = re.compile(r'ROM_RELOAD\(\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+)\s*\)')
 FILL_RE = re.compile(r'ROM_FILL\(\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+)\s*\)')
 COPY_RE = re.compile(r'ROM_COPY\(\s*"([^"]+)",\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+)\s*\)')
-REGION_RE = re.compile(r'ROM_REGION\(\s*(0x[0-9a-fA-F]+),\s*"([^"]+)"')
+REGION_RE = re.compile(r'ROM_REGION(?:16_BE)?\(\s*(0x[0-9a-fA-F]+),\s*"([^"]+)"')
 MACRO_RE = re.compile(r'\b(PORT_\w+|INPUT_PORTS_\w+)\b(\s*\(((?:[^()"]|"[^"]*"|\([^()]*\))*)\))?')
 
 
@@ -181,6 +208,12 @@ def parse_roms(src, setname):
         elif (l := LOAD_RE.search(line)):
             name, off, length, crc = l.group(1), int(l.group(2), 16), int(l.group(3), 16), l.group(4).lower()
             last = dict(name=name, crc=crc, src=0, dst=off, len=length, flen=length, region=region, rsize=rsize)
+            segs.append(last)
+        elif (l := LOAD16_RE.search(line)):
+            # ROM_LOAD16_BYTE (big-endian region): even offsets = high byte plane, odd = low byte plane
+            name, off, length, crc = l.group(1), int(l.group(2), 16), int(l.group(3), 16), l.group(4).lower()
+            last = dict(name=name, crc=crc, src=0, dst=off >> 1, len=length, flen=length,
+                        region=f"{region}_{'lo' if off & 1 else 'hi'}", rsize=rsize // 2)
             segs.append(last)
         elif (c := CONT_RE.search(line)):
             off, length = int(c.group(1), 16), int(c.group(2), 16)
@@ -323,7 +356,7 @@ def parse_inputs(src):
             elif mac == "PORT_2WAY":
                 fld["twoway"] = True
             elif mac in ("PORT_DIPLOCATION", "PORT_CODE", "PORT_8WAY", "PORT_CONDITION",
-                         "PORT_SENSITIVITY", "PORT_KEYDELTA", "PORT_READ_LINE_DEVICE_MEMBER",
+                         "PORT_SENSITIVITY", "PORT_KEYDELTA", "PORT_MINMAX", "PORT_READ_LINE_DEVICE_MEMBER",
                          "PORT_CHANGED_MEMBER", "PORT_WRITE_LINE_DEVICE_MEMBER"):
                 pass
             elif mac == "PORT_CUSTOM_MEMBER":
@@ -520,7 +553,7 @@ def hiscore_xml(g):
 
 def mra(g, games, segs, build_inputs):
     variant = STATE_VARIANT.get(g["state"], SUPPORTED[(g["machine"], g["init"])])
-    ports = build_inputs(g["inputs"])
+    ports = PORT_REWRITE.get(g["machine"], lambda p: p)(build_inputs(g["inputs"]))
     idle, dips, imap, fourway, buttons, tb_rev, impulse = input_config(g, ports)
     twoway = any(f.get("twoway") for fields in ports.values() for f in fields)
     flags = (F_4WAY if fourway else 0) | (F_IMPULSE if impulse else 0) | (F_WIDE if g["init"] in WIDE_INITS or g["machine"] in WIDE_MACHINES else 0) | \

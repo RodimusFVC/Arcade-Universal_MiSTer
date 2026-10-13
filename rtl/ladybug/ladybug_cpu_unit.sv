@@ -20,6 +20,8 @@
 
 module ladybug_cpu_unit
 (
+    output logic [13:0] z80_o,          // shared T80 (rtl/z80_socket.sv)
+    input  logic [29:0] z80_i,
     input  logic        clk_20mhz_i,
     input  logic        cpu_cen_p_i,
     input  logic        cpu_cen_n_i,
@@ -75,7 +77,7 @@ logic        ram_cpu_cs_n_s;
 
 assign wait_n_s = sound_wait_n_i & wait_n_i;
 
-T80pa #(.Mode(0)) T80pa_b
+z80_socket T80pa_b
 (
     .RESET_n   (res_n_i),
     .CLK       (clk_20mhz_i),
@@ -100,7 +102,9 @@ T80pa #(.Mode(0)) T80pa_b
     .R800_mode (1'b0),
     .REG       (),
     .DIRSet    (1'b0),
-    .DIR       (212'd0)
+    .DIR       (212'd0),
+    .to_cpu    (z80_o),
+    .from_cpu  (z80_i)
 );
 
 assign d_from_cpu_o = d_from_cpu_s;

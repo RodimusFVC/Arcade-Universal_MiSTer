@@ -33,6 +33,10 @@
 
 module docastle_board
 (
+    output logic        [13:0] z80m_o,         // shared T80s (rtl/z80_socket.sv): main
+    input  logic        [29:0] z80m_i,
+    output logic        [13:0] z80s_o,         // sub
+    input  logic        [29:0] z80s_i,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
     input  logic               pause,
@@ -114,13 +118,14 @@ logic [15:0] m_a;
 logic  [7:0] m_di, m_do;
 logic        m_wait_n, m_int_n;
 
-T80pa #(.Mode(0)) main_cpu
+z80_socket main_cpu
 (
     .RESET_n (~reset), .CLK(clk), .CEN_p(cpu_p), .CEN_n(cpu_n),
     .WAIT_n  (m_wait_n), .INT_n(m_int_n), .NMI_n(1'b1), .BUSRQ_n(1'b1),
     .M1_n(m_m1_n), .MREQ_n(m_mreq_n), .IORQ_n(m_iorq_n), .RD_n(m_rd_n), .WR_n(m_wr_n), .RFSH_n(m_rfsh_n),
     .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(m_a), .DI(m_di), .DO(m_do),
-    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0)
+    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0),
+    .to_cpu(z80m_o), .from_cpu(z80m_i)
 );
 
 wire m_mem = !m_mreq_n && m_rfsh_n;
@@ -159,13 +164,14 @@ logic  [7:0] s_di, s_do;
 logic        s_int_n = 1'b1, s_nmi_n = 1'b1;
 logic  [3:0] sn_ready;
 
-T80pa #(.Mode(0)) sub_cpu
+z80_socket sub_cpu
 (
     .RESET_n (~reset), .CLK(clk), .CEN_p(cpu_p), .CEN_n(cpu_n),
     .WAIT_n  (&sn_ready), .INT_n(s_int_n), .NMI_n(s_nmi_n), .BUSRQ_n(1'b1),
     .M1_n(s_m1_n), .MREQ_n(s_mreq_n), .IORQ_n(s_iorq_n), .RD_n(s_rd_n), .WR_n(s_wr_n), .RFSH_n(s_rfsh_n),
     .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(s_a), .DI(s_di), .DO(s_do),
-    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0)
+    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0),
+    .to_cpu(z80s_o), .from_cpu(z80s_i)
 );
 
 wire s_mem = !s_mreq_n && s_rfsh_n;

@@ -16,6 +16,10 @@
 
 module ladybug_machine
 (
+    output logic        [13:0] z80m_o,         // shared T80s (rtl/z80_socket.sv): main
+    input  logic        [29:0] z80m_i,
+    output logic        [13:0] z80s_o,         // 8203 sub
+    input  logic        [29:0] z80s_i,
     input  logic               clk_20mhz_i,     // 19.656 MHz
     input  logic               ext_res_n_i,
     input  logic               pause_i,
@@ -120,6 +124,8 @@ assign hs_data_out = hs_cs_cpu ? hs_data_out_cpu : hs_data_out_vram;
 
 ladybug_cpu_unit cpu_b
 (
+    .z80_o          (z80m_o),
+    .z80_i          (z80m_i),
     .clk_20mhz_i    (clk_20mhz_i),
     .cpu_cen_p_i    (cpu_cen_p_s),
     .cpu_cen_n_i    (cpu_cen_n_s),
@@ -231,6 +237,8 @@ assign rgb_b_o = board_8203_i ? {rgb_n_s[7], rgb_n_s[8]} : lb_b_s;
 
 sraider_sub sub_b
 (
+    .z80_o    (z80s_o),
+    .z80_i    (z80s_i),
     .clk      (clk_20mhz_i),
     .cen_p    (cpu_cen_p_s),
     .cen_n    (cpu_cen_n_s),

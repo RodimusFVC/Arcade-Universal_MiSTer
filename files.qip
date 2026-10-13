@@ -2,6 +2,7 @@ set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
 
 set_global_assignment -name SYSTEMVERILOG_FILE Arcade-Universal.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/universal_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/z80_socket.sv
 
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_machine.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/ladybug/ladybug_clk.sv
@@ -36,6 +37,9 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/panic_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/cosmica_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/magspot_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cosmic/nomnlnd_sound.sv
+set_global_assignment -name VHDL_FILE rtl/tms/tms9900.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/tms/tms_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/tms/cosmicg_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/msm5205.sv
 set_global_assignment -name VHDL_FILE rtl/video/mc6845.vhd
 

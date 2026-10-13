@@ -17,6 +17,7 @@
 //  Variant 11: Red Clash (redclash_state)
 //  Variant 12: Cheeky Mouse (cheekyms_state)
 //  Variants 13-17: Cosmic boards: Space Panic, Cosmic Alien, Magical Spot, Devil Zone, No Man's Land
+//  Variants 18-19: TMS99xx boards: Cosmic Guerilla (TMS9980A), Get A Way (TMS9900)
 //
 //  ioctl index 0 (MRA), images stored as dumped, MAME region order:
 //    0x00000 - 0x05FFF  maincpu
@@ -38,6 +39,8 @@
 //    proms 0x0C000
 //  Cosmic boards: maincpu 0x00000, user1 colour map 0x08000, user2 0x09000, gfx1 0x0A000 / 0x0B000 (halves),
 //    proms 0x0C000, user3 0x0C040; Devil Zone grid frame in the CRT Flip frame buffer RAM
+//  Cosmic Guerilla: program 0x00000, colour map 0x08000
+//  Get A Way: program high bytes 0x00000, low bytes 0x02000 (ROM_LOAD16_BYTE planes), gfx 0x08000 / 0x09000
 //
 //============================================================================
 
@@ -104,11 +107,13 @@ wire zhour       = (variant == 8'd10) || (variant == 8'd11);
 wire cheeky      = (variant == 8'd12);
 wire cosmic      = (variant >= 8'd13) && (variant <= 8'd17);
 wire cs_grid     = (variant == 8'd16);
+wire tms         = (variant == 8'd18) || (variant == 8'd19);
 logic [15:0] dc_adpcm_a;
 logic [16:0] dc_spr8_a;
 logic  [7:0] dc_spr8_d;
 
-logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a, zh_cpu_a, cm_cpu_a, cs_cpu_a;
+logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a, zh_cpu_a, cm_cpu_a, cs_cpu_a, tm_cpu_a;
+logic [11:0] tm_chr_a;
 logic [11:0] lb_char_a, lb_sprite_a, md_fg_a, md_bg_a, zh_chr_a, zh_spr_a, cm_chr_a, cm_spr_a;
 logic [11:0] cs_cmap_a, cs_u2_a, cs_u2b_a, cs_spr_a;
 logic  [7:0] cs_u2_d, cs_u2b_d;
@@ -118,8 +123,8 @@ logic  [7:0] dec_h, dec_l;
 logic [11:0] rom_char_a, rom_sprite_a;
 
 assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : zhour ? zh_cpu_a : cheeky ? cm_cpu_a :
-                      cosmic ? cs_cpu_a : lb_cpu_a;
-assign rom_char_a   = mrdo ? md_fg_a  : zhour ? zh_chr_a : cheeky ? cm_chr_a : cosmic ? cs_cmap_a : lb_char_a;
+                      cosmic ? cs_cpu_a : tms ? tm_cpu_a : lb_cpu_a;
+assign rom_char_a   = mrdo ? md_fg_a  : zhour ? zh_chr_a : cheeky ? cm_chr_a : cosmic ? cs_cmap_a : tms ? tm_chr_a : lb_char_a;
 assign rom_sprite_a = mrdo ? md_bg_a  : cheeky ? cm_spr_a : cosmic ? cs_spr_a : lb_sprite_a;
 logic [15:0] rom_char_d, rom_sprite_d;
 
@@ -262,6 +267,33 @@ wire prom_k1_wr = load_prom && ioctl_addr[6:5] == 2'd0;
 wire prom_f4_wr = load_prom && ioctl_addr[6:5] == 2'd1;
 wire prom_c4_wr = load_prom && ioctl_addr[6:5] == 2'd2;
 
+/////////////////////////////  shared Z80s  /////////////////////////////
+// One T80 per CPU role, shared by the boards (only one board runs): main = Lady Bug / Mr. Do! / Castle main /
+// Zero Hour / Cheeky Mouse / Cosmic, sub = Space Raider 8203 sub / Castle sub. Boards hold rtl/z80_socket.sv;
+// unselected boards stay in reset. Lady Bug is the default (its reset is held for the other boards).
+logic [13:0] lb_zm, lb_zs, md_zm, dc_zm, dc_zs, zh_zm, cm_zm, cs_zm;     // {RESET_n, CEN_p, CEN_n, WAIT_n, INT_n, NMI_n, DI}
+logic [29:0] zm_from, zs_from;                                           // {M1_n, MREQ_n, IORQ_n, RD_n, WR_n, RFSH_n, A, DO}
+wire  [13:0] zm_to = mrdo ? md_zm : dcastle ? dc_zm : zhour ? zh_zm : cheeky ? cm_zm : cosmic ? cs_zm : lb_zm;
+wire  [13:0] zs_to = dcastle ? dc_zs : lb_zs;
+
+T80pa #(.Mode(0)) main_z80
+(
+    .RESET_n (zm_to[13]), .CLK(clk), .CEN_p(zm_to[12]), .CEN_n(zm_to[11]),
+    .WAIT_n  (zm_to[10]), .INT_n(zm_to[9]), .NMI_n(zm_to[8]), .BUSRQ_n(1'b1),
+    .M1_n(zm_from[29]), .MREQ_n(zm_from[28]), .IORQ_n(zm_from[27]), .RD_n(zm_from[26]), .WR_n(zm_from[25]),
+    .RFSH_n(zm_from[24]), .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(zm_from[23:8]), .DI(zm_to[7:0]), .DO(zm_from[7:0]),
+    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0)
+);
+
+T80pa #(.Mode(0)) sub_z80
+(
+    .RESET_n (zs_to[13]), .CLK(clk), .CEN_p(zs_to[12]), .CEN_n(zs_to[11]),
+    .WAIT_n  (zs_to[10]), .INT_n(zs_to[9]), .NMI_n(zs_to[8]), .BUSRQ_n(1'b1),
+    .M1_n(zs_from[29]), .MREQ_n(zs_from[28]), .IORQ_n(zs_from[27]), .RD_n(zs_from[26]), .WR_n(zs_from[25]),
+    .RFSH_n(zs_from[24]), .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(zs_from[23:8]), .DI(zs_to[7:0]), .DO(zs_from[7:0]),
+    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0)
+);
+
 /////////////////////////////  Lady Bug  /////////////////////////////
 
 logic [1:0] lb_r, lb_g, lb_b;
@@ -275,8 +307,12 @@ logic       ov_hbl, ov_vbl, fb_hbl, fb_vbl;
 
 ladybug_machine ladybug
 (
+    .z80m_o          (lb_zm),
+    .z80m_i          (zm_from),
+    .z80s_o          (lb_zs),
+    .z80s_i          (zs_from),
     .clk_20mhz_i     (clk),
-    .ext_res_n_i     (~reset & ~mrdo & ~dcastle & ~zhour & ~cheeky & ~cosmic),
+    .ext_res_n_i     (~reset & ~mrdo & ~dcastle & ~zhour & ~cheeky & ~cosmic & ~tms),
     .pause_i         (pause),
     .decrypt_en_i    (rom_dec == 4'd1),
     .p2_follows_p1_i (game_flags2[0]),
@@ -423,6 +459,8 @@ logic signed [15:0] md_audio;
 
 mrdo_board mrdo_b
 (
+    .z80_o        (md_zm),
+    .z80_i        (zm_from),
     .clk          (clk),
     .reset        (reset | ~mrdo),
     .pause        (pause),
@@ -469,6 +507,10 @@ logic signed [15:0] dc_audio;
 
 docastle_board docastle_b
 (
+    .z80m_o       (dc_zm),
+    .z80m_i       (zm_from),
+    .z80s_o       (dc_zs),
+    .z80s_i       (zs_from),
     .clk          (clk),
     .reset        (reset | ~dcastle),
     .pause        (pause),
@@ -522,6 +564,8 @@ logic signed [15:0] zh_audio;
 
 zerohour_board zerohour_b
 (
+    .z80_o        (zh_zm),
+    .z80_i        (zm_from),
     .clk          (clk),
     .reset        (reset | ~zhour),
     .pause        (pause),
@@ -567,6 +611,8 @@ logic signed [15:0] cm_audio;
 
 cheekyms_board cheekyms_b
 (
+    .z80_o        (cm_zm),
+    .z80_i        (zm_from),
     .clk          (clk),
     .reset        (reset | ~cheeky),
     .pause        (pause),
@@ -621,6 +667,8 @@ wire   [7:0] cs_kind = variant - 8'd13;
 
 cosmic_board cosmic_b
 (
+    .z80_o        (cs_zm),
+    .z80_i        (zm_from),
     .clk          (clk),
     .reset        (reset | ~cosmic),
     .pause        (pause),
@@ -664,17 +712,54 @@ cosmic_board cosmic_b
     .grid_q       (dc_spr8_d)
 );
 
+/////////////////////////////  TMS99xx boards  /////////////////////////////
+
+logic        tm_ce, tm_hs, tm_vs, tm_hbl, tm_vbl;
+logic  [7:0] tm_r, tm_g, tm_b;
+logic [15:0] tm_snd;
+logic signed [15:0] tm_audio;
+
+tms_board tms_b
+(
+    .clk          (clk),
+    .reset        (reset | ~tms),
+    .pause        (pause),
+    .getaway      (variant == 8'd19),
+    .crt_flip     (crt_flip),
+    .in0          (in0),
+    .in1          (in1),
+    .in2          (in2),
+    .dsw0         (dsw0),
+    .dsw1         (dsw1),
+    .h_adj        (h_adj),
+    .v_adj        (v_adj),
+    .ce_pix       (tm_ce),
+    .video_r      (tm_r),
+    .video_g      (tm_g),
+    .video_b      (tm_b),
+    .video_hs     (tm_hs),
+    .video_vs     (tm_vs),
+    .video_hblank (tm_hbl),
+    .video_vblank (tm_vbl),
+    .audio        (tm_audio),
+    .snd_out      (tm_snd),
+    .rom_cpu_a    (tm_cpu_a),
+    .rom_cpu_d    (rom_cpu_d),
+    .rom_chr_a    (tm_chr_a),
+    .rom_chr_d    (rom_char_d)
+);
+
 /////////////////////////////  output select  /////////////////////////////
 
-assign ce_pix       = cosmic ? cs_ce    : cheeky ? cm_ce    : zhour ? zh_ce    : dcastle ? dc_ce    : mrdo ? md_ce    : lb_ce;
-assign video_r      = cosmic ? cs_r     : cheeky ? cm_r     : zhour ? zh_r     : dcastle ? dc_r     : mrdo ? md_r     : lb_rgb[23:16];
-assign video_g      = cosmic ? cs_g     : cheeky ? cm_g     : zhour ? zh_g     : dcastle ? dc_g     : mrdo ? md_g     : lb_rgb[15:8];
-assign video_b      = cosmic ? cs_b     : cheeky ? cm_b     : zhour ? zh_b     : dcastle ? dc_b     : mrdo ? md_b     : lb_rgb[7:0];
-assign video_hblank = cosmic ? cs_hbl   : cheeky ? cm_hbl   : zhour ? zh_hbl   : dcastle ? dc_hbl   : mrdo ? md_hbl   : fb_hbl;
-assign video_vblank = cosmic ? cs_vbl   : cheeky ? cm_vbl   : zhour ? zh_vbl   : dcastle ? dc_vbl   : mrdo ? md_vbl   : fb_vbl;
-assign video_hs     = cosmic ? cs_hs    : cheeky ? cm_hs    : zhour ? zh_hs    : dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
-assign video_vs     = cosmic ? cs_vs    : cheeky ? cm_vs    : zhour ? zh_vs    : dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
-assign audio        = cosmic ? cs_audio : cheeky ? cm_audio : zhour ? zh_audio : dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
-assign hs_data_out  = cosmic ? 8'd0 : cheeky ? cm_hs_data : zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
+assign ce_pix       = tms ? tm_ce    : cosmic ? cs_ce    : cheeky ? cm_ce    : zhour ? zh_ce    : dcastle ? dc_ce    : mrdo ? md_ce    : lb_ce;
+assign video_r      = tms ? tm_r     : cosmic ? cs_r     : cheeky ? cm_r     : zhour ? zh_r     : dcastle ? dc_r     : mrdo ? md_r     : lb_rgb[23:16];
+assign video_g      = tms ? tm_g     : cosmic ? cs_g     : cheeky ? cm_g     : zhour ? zh_g     : dcastle ? dc_g     : mrdo ? md_g     : lb_rgb[15:8];
+assign video_b      = tms ? tm_b     : cosmic ? cs_b     : cheeky ? cm_b     : zhour ? zh_b     : dcastle ? dc_b     : mrdo ? md_b     : lb_rgb[7:0];
+assign video_hblank = tms ? tm_hbl   : cosmic ? cs_hbl   : cheeky ? cm_hbl   : zhour ? zh_hbl   : dcastle ? dc_hbl   : mrdo ? md_hbl   : fb_hbl;
+assign video_vblank = tms ? tm_vbl   : cosmic ? cs_vbl   : cheeky ? cm_vbl   : zhour ? zh_vbl   : dcastle ? dc_vbl   : mrdo ? md_vbl   : fb_vbl;
+assign video_hs     = tms ? tm_hs    : cosmic ? cs_hs    : cheeky ? cm_hs    : zhour ? zh_hs    : dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
+assign video_vs     = tms ? tm_vs    : cosmic ? cs_vs    : cheeky ? cm_vs    : zhour ? zh_vs    : dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
+assign audio        = tms ? tm_audio : cosmic ? cs_audio : cheeky ? cm_audio : zhour ? zh_audio : dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
+assign hs_data_out  = (tms | cosmic) ? 8'd0 : cheeky ? cm_hs_data : zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
 
 endmodule

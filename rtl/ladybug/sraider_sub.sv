@@ -15,6 +15,8 @@
 
 module sraider_sub
 (
+    output logic        [13:0] z80_o,          // shared T80 (rtl/z80_socket.sv)
+    input  logic        [29:0] z80_i,
     input  logic               clk,
     input  logic               cen_p,
     input  logic               cen_n,
@@ -41,7 +43,7 @@ logic [15:0] a;
 logic  [7:0] din, dout, ram_q;
 logic        int_n = 1'b1, vbl_d = 1'b0;
 
-T80pa #(.Mode(0)) cpu
+z80_socket cpu
 (
     .RESET_n   (res_n),
     .CLK       (clk),
@@ -66,7 +68,9 @@ T80pa #(.Mode(0)) cpu
     .R800_mode (1'b0),
     .REG       (),
     .DIRSet    (1'b0),
-    .DIR       (212'd0)
+    .DIR       (212'd0),
+    .to_cpu    (z80_o),
+    .from_cpu  (z80_i)
 );
 
 always_ff @(posedge clk) begin

@@ -25,6 +25,8 @@
 
 module cosmic_board
 (
+    output logic        [13:0] z80_o,          // shared T80 (rtl/z80_socket.sv)
+    input  logic        [29:0] z80_i,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
     input  logic               pause,
@@ -135,7 +137,7 @@ logic        int_n = 1'b1;
 logic  [7:0] int_vec = 8'hFF;
 wire         nmi_n = k_panic ? 1'b1 : (k_cosa || k_nml) ? ~coin[0] : ~coin[1];
 
-T80pa #(.Mode(0)) cpu
+z80_socket cpu
 (
     .RESET_n   (~reset),
     .CLK       (clk),
@@ -160,7 +162,9 @@ T80pa #(.Mode(0)) cpu
     .R800_mode (1'b0),
     .REG       (),
     .DIRSet    (1'b0),
-    .DIR       (212'd0)
+    .DIR       (212'd0),
+    .to_cpu    (z80_o),
+    .from_cpu  (z80_i)
 );
 
 wire mem  = !mreq_n && rfsh_n;
