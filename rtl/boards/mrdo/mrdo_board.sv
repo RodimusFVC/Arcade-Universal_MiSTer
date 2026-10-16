@@ -22,8 +22,10 @@
 
 module mrdo_board
 (
-    output logic        [13:0] z80_o,          // shared T80 (rtl/z80_socket.sv)
-    input  logic        [29:0] z80_i,
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_board.sv)
+    input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
+    output chip_pool_pkg::sn76489_i_t [1:0] sn76489_i,  // shared SN76489s 0-1
+    input  chip_pool_pkg::sn76489_o_t [1:0] sn76489_o,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
     input  logic               pause,
@@ -112,35 +114,22 @@ logic [15:0] a;
 logic  [7:0] din, dout;
 logic        int_n = 1'b1, vbl_d = 1'b0;
 
-z80_socket cpu
-(
-    .RESET_n   (~reset),
-    .CLK       (clk),
-    .CEN_p     (cen_p & ~pause),
-    .CEN_n     (cen_n & ~pause),
-    .WAIT_n    (1'b1),
-    .INT_n     (int_n),
-    .NMI_n     (1'b1),
-    .BUSRQ_n   (1'b1),
-    .M1_n      (m1_n),
-    .MREQ_n    (mreq_n),
-    .IORQ_n    (iorq_n),
-    .RD_n      (rd_n),
-    .WR_n      (wr_n),
-    .RFSH_n    (rfsh_n),
-    .HALT_n    (),
-    .BUSAK_n   (),
-    .OUT0      (1'b0),
-    .A         (a),
-    .DI        (din),
-    .DO        (dout),
-    .R800_mode (1'b0),
-    .REG       (),
-    .DIRSet    (1'b0),
-    .DIR       (212'd0),
-    .to_cpu    (z80_o),
-    .from_cpu  (z80_i)
-);
+// the shared T80pa in rtl/universal_board.sv
+assign z80pa_0_i.reset_n = ~reset;
+assign z80pa_0_i.cen_p   = cen_p & ~pause;
+assign z80pa_0_i.cen_n   = cen_n & ~pause;
+assign z80pa_0_i.wait_n  = 1'b1;
+assign z80pa_0_i.int_n   = int_n;
+assign z80pa_0_i.nmi_n   = 1'b1;
+assign z80pa_0_i.di      = din;
+assign m1_n = z80pa_0_o.m1_n;
+assign mreq_n = z80pa_0_o.mreq_n;
+assign iorq_n = z80pa_0_o.iorq_n;
+assign rd_n = z80pa_0_o.rd_n;
+assign wr_n = z80pa_0_o.wr_n;
+assign rfsh_n = z80pa_0_o.rfsh_n;
+assign a = z80pa_0_o.a;
+assign dout = z80pa_0_o.dout;
 
 always_ff @(posedge clk) begin
     vbl_d <= vbl_s0;
@@ -282,16 +271,20 @@ end
 logic signed [10:0] sn1_out, sn2_out;
 wire sn_cen = cen_p & ~pause;
 
-jt89 sn1
-(
-    .rst(reset), .clk(clk), .clk_en(sn_cen),
-    .wr_n(~(io98_cs && wr && a[1:0] == 2'd1)), .cs_n(1'b0), .din(dout), .sound(sn1_out), .ready()
-);
-jt89 sn2
-(
-    .rst(reset), .clk(clk), .clk_en(sn_cen),
-    .wr_n(~(io98_cs && wr && a[1:0] == 2'd2)), .cs_n(1'b0), .din(dout), .sound(sn2_out), .ready()
-);
+// sn1 / sn2 = the shared SN76489s 0 / 1 in rtl/universal_board.sv
+assign sn76489_i[0].rst  = reset;
+assign sn76489_i[0].ce   = sn_cen;
+assign sn76489_i[0].wr_n = ~(io98_cs && wr && a[1:0] == 2'd1);
+assign sn76489_i[0].cs_n = 1'b0;
+assign sn76489_i[0].din  = dout;
+assign sn1_out = sn76489_o[0].sound;
+
+assign sn76489_i[1].rst  = reset;
+assign sn76489_i[1].ce   = sn_cen;
+assign sn76489_i[1].wr_n = ~(io98_cs && wr && a[1:0] == 2'd2);
+assign sn76489_i[1].cs_n = 1'b0;
+assign sn76489_i[1].din  = dout;
+assign sn2_out = sn76489_o[1].sound;
 
 wire signed [11:0] snd_sum = {sn1_out[10], sn1_out} + {sn2_out[10], sn2_out};
 assign audio = {snd_sum, 4'd0};

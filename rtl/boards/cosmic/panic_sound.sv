@@ -14,7 +14,7 @@
 //    hang 280 Hz, 0.42 s                          escape low noise chopped at 3.2 Hz
 //    extend 2594 Hz                               player die low noise, up 0.4 s then down
 //    enemy laugh 1-3 kHz noise chopped at 4.4 Hz, 2.78 s                    coin 1026 Hz, 0.5 s
-//  Engine as rtl/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32); envelopes 1.0 = 2^24.
+//  Engine as rtl/boards/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32); envelopes 1.0 = 2^24.
 //
 //============================================================================
 

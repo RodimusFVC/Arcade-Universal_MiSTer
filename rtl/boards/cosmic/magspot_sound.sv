@@ -23,7 +23,7 @@
 //    music: the CPU's bit through 100k / 51k, low-passed (C42 read as 0.0022u: 0.022u would leave ~70 Hz)
 //           mixed at twice the R92 220k weight (HW 2026-10-12: about half as loud as it should be)
 //    enable: Q2 shorts the mix bus
-//  Engine as rtl/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32, 1 V = 2^24).
+//  Engine as rtl/boards/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32, 1 V = 2^24).
 //
 //============================================================================
 

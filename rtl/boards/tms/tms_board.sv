@@ -4,7 +4,7 @@
 //  Copyright (C) 2026 Rodimus
 //
 //  From MAME cosmicg.cpp (Nicola Salmoria, Lee Taylor) and getaway.cpp (hap, Angelo Salese).
-//  CPU: Erik Piehl's TMS9900 VHDL (rtl/tms/tms9900.vhd), one instance for both boards.
+//  CPU: Erik Piehl's TMS9900 VHDL (rtl/boards/tms/tms9900.vhd), one instance for both boards.
 //
 //  Cosmic Guerilla (getaway = 0): TMS9980A 9.828 MHz / 4 (8-bit bus: +2 cycles per word access).
 //    0000-1FFF ROM (data lines scrambled, decoded on read), 2000-3FFF video RAM with the CRTC in a hole
@@ -496,7 +496,7 @@ always_ff @(posedge clk) begin
     end
 end
 
-// cosmicg sound (rtl/tms/cosmicg_sound.sv); Get A Way: discrete, no schematic or recording (MAME: no sound)
+// cosmicg sound (rtl/boards/tms/cosmicg_sound.sv); Get A Way: discrete, no schematic or recording (MAME: no sound)
 logic signed [15:0] cg_snd;
 cosmicg_sound cg_sound
 (

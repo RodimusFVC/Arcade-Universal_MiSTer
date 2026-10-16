@@ -19,7 +19,7 @@
 //    got enemy: IC11b 556 (1k / 100k / 0.01u) while pin 8 is high
 //    player dead / coin: pink noise x10 / x4.7 gated by C16 (2.2u, 470k + 470k) / C18 (0.47u)
 //    music: C35 / R60 straight into the bus; enable: IC16 shorts the bus after R50 / C17
-//  Engine as rtl/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32, 1 V = 2^24).
+//  Engine as rtl/boards/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32, 1 V = 2^24).
 //
 //============================================================================
 

@@ -15,8 +15,10 @@
 
 module sraider_sub
 (
-    output logic        [13:0] z80_o,          // shared T80 (rtl/z80_socket.sv)
-    input  logic        [29:0] z80_i,
+    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,   // shared Z80 (rtl/universal_board.sv)
+    input  chip_pool_pkg::z80pa_o_t         z80pa_1_o,
+    output chip_pool_pkg::sn76489_i_t [4:0] sn76489_i,   // shared SN76489s 2-6
+    input  chip_pool_pkg::sn76489_o_t [4:0] sn76489_o,
     input  logic               clk,
     input  logic               cen_p,
     input  logic               cen_n,
@@ -43,35 +45,22 @@ logic [15:0] a;
 logic  [7:0] din, dout, ram_q;
 logic        int_n = 1'b1, vbl_d = 1'b0;
 
-z80_socket cpu
-(
-    .RESET_n   (res_n),
-    .CLK       (clk),
-    .CEN_p     (cen_p & ~pause),
-    .CEN_n     (cen_n & ~pause),
-    .WAIT_n    (1'b1),
-    .INT_n     (int_n),
-    .NMI_n     (1'b1),
-    .BUSRQ_n   (1'b1),
-    .M1_n      (m1_n),
-    .MREQ_n    (mreq_n),
-    .IORQ_n    (iorq_n),
-    .RD_n      (rd_n),
-    .WR_n      (wr_n),
-    .RFSH_n    (rfsh_n),
-    .HALT_n    (),
-    .BUSAK_n   (),
-    .OUT0      (1'b0),
-    .A         (a),
-    .DI        (din),
-    .DO        (dout),
-    .R800_mode (1'b0),
-    .REG       (),
-    .DIRSet    (1'b0),
-    .DIR       (212'd0),
-    .to_cpu    (z80_o),
-    .from_cpu  (z80_i)
-);
+// the shared T80pa in rtl/universal_board.sv
+assign z80pa_1_i.reset_n = res_n;
+assign z80pa_1_i.cen_p   = cen_p & ~pause;
+assign z80pa_1_i.cen_n   = cen_n & ~pause;
+assign z80pa_1_i.wait_n  = 1'b1;
+assign z80pa_1_i.int_n   = int_n;
+assign z80pa_1_i.nmi_n   = 1'b1;
+assign z80pa_1_i.di      = din;
+assign m1_n   = z80pa_1_o.m1_n;
+assign mreq_n = z80pa_1_o.mreq_n;
+assign iorq_n = z80pa_1_o.iorq_n;
+assign rd_n   = z80pa_1_o.rd_n;
+assign wr_n   = z80pa_1_o.wr_n;
+assign rfsh_n = z80pa_1_o.rfsh_n;
+assign a      = z80pa_1_o.a;
+assign dout   = z80pa_1_o.dout;
 
 always_ff @(posedge clk) begin
     vbl_d <= vblank;
@@ -123,17 +112,13 @@ logic signed [10:0] sn_out[5];
 genvar i;
 generate
     for (i = 0; i < 5; i++) begin : sn
-        jt89 psg
-        (
-            .rst    (~res_n),
-            .clk    (clk),
-            .clk_en (cen_p & ~pause),
-            .wr_n   (~(io_wr && a[7:3] == i)),
-            .cs_n   (1'b0),
-            .din    (dout),
-            .sound  (sn_out[i]),
-            .ready  ()
-        );
+        // the shared SN76489s in rtl/universal_board.sv
+        assign sn76489_i[i].rst  = ~res_n;
+        assign sn76489_i[i].ce   = cen_p & ~pause;
+        assign sn76489_i[i].wr_n = ~(io_wr && a[7:3] == i);
+        assign sn76489_i[i].cs_n = 1'b0;
+        assign sn76489_i[i].din  = dout;
+        assign sn_out[i] = sn76489_o[i].sound;
     end
 endgenerate
 

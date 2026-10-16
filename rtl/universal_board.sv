@@ -85,7 +85,7 @@ module universal_board
     input  logic        hs_write
 );
 
-/////////////////////////////  ROM storage  /////////////////////////////
+/////////////////////////////  Shared ROM blocks  /////////////////////////////
 
 wire load_cpu  = ioctl_wr0 && ioctl_addr < 25'h08000;
 wire load_chl  = ioctl_wr0 && ioctl_addr[24:12] == 13'h0008;
@@ -96,7 +96,6 @@ wire load_prom = ioctl_wr0 && ioctl_addr[24:7]  == 18'h00180;   // 0xC000-0xC07F
 wire load_dech = ioctl_wr0 && ioctl_addr[24:8]  == 17'h000C1;
 wire load_decl = ioctl_wr0 && ioctl_addr[24:8]  == 17'h000C2;
 wire load_sub  = ioctl_wr0 && ioctl_addr[24:15] == 10'h002;      // 0x10000-0x17FFF
-wire load_grid = ioctl_wr0 && ioctl_addr[24:12] == 13'h0018;
 
 wire board_8203  = (variant == 8'd1) || (variant == 8'd2);
 wire sraider_ovl = (variant == 8'd1);
@@ -187,12 +186,6 @@ dpram_dc #(.widthad_a(15)) rom_sub
     .clock_b(clk), .address_b(rom_sub_a), .q_b(rom_sub_d)
 );
 
-dpram_dc #(.widthad_a(12)) rom_grid
-(
-    .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_grid),
-    .clock_b(clk), .address_b(grid_rom_a), .q_b(grid_rom_d)
-);
-
 // Space Raider grid RAM (HD6148P @ D6): written by the sub CPU, read by the overlay
 dpram_dc #(.widthad_a(8)) ram_grid
 (
@@ -200,9 +193,13 @@ dpram_dc #(.widthad_a(8)) ram_grid
     .clock_b(clk), .address_b(grid_ram_a), .q_b(grid_ram_d)
 );
 
-// Mr. Do! sprite ROM as 4 byte lanes (one 16-pixel row per read)
+// 0x18000-0x19FFF as 4 byte lanes: Mr. Do! sprite ROM (one 16-pixel row per read); Space Raider grid ROM
+// (0x18000-0x18FFF, byte-wide: lane picked by the registered address)
 logic [10:0] md_spr_a;
 logic [31:0] md_spr_d;
+logic  [1:0] grid_lane = 2'd0;
+always_ff @(posedge clk) grid_lane <= grid_rom_a[1:0];
+assign grid_rom_d = md_spr_d[grid_lane*8 +: 8];
 wire         load_mdspr = ioctl_wr0 && ioctl_addr[24:13] == 12'h00C;   // 0x18000-0x19FFF
 genvar ln;
 generate
@@ -210,7 +207,7 @@ generate
         dpram_dc #(.widthad_a(11)) rom
         (
             .clock_a(clk), .address_a(ioctl_addr[12:2]), .data_a(ioctl_dout), .wren_a(load_mdspr && ioctl_addr[1:0] == ln),
-            .clock_b(clk), .address_b(md_spr_a), .q_b(md_spr_d[ln*8 +: 8])
+            .clock_b(clk), .address_b(board_8203 ? {1'b0, grid_rom_a[11:2]} : md_spr_a), .q_b(md_spr_d[ln*8 +: 8])
         );
     end
 endgenerate
@@ -267,32 +264,79 @@ wire prom_k1_wr = load_prom && ioctl_addr[6:5] == 2'd0;
 wire prom_f4_wr = load_prom && ioctl_addr[6:5] == 2'd1;
 wire prom_c4_wr = load_prom && ioctl_addr[6:5] == 2'd2;
 
-/////////////////////////////  shared Z80s  /////////////////////////////
-// One T80 per CPU role, shared by the boards (only one board runs): main = Lady Bug / Mr. Do! / Castle main /
-// Zero Hour / Cheeky Mouse / Cosmic, sub = Space Raider 8203 sub / Castle sub. Boards hold rtl/z80_socket.sv;
-// unselected boards stay in reset. Lady Bug is the default (its reset is held for the other boards).
-logic [13:0] lb_zm, lb_zs, md_zm, dc_zm, dc_zs, zh_zm, cm_zm, cs_zm;     // {RESET_n, CEN_p, CEN_n, WAIT_n, INT_n, NMI_n, DI}
-logic [29:0] zm_from, zs_from;                                           // {M1_n, MREQ_n, IORQ_n, RD_n, WR_n, RFSH_n, A, DO}
-wire  [13:0] zm_to = mrdo ? md_zm : dcastle ? dc_zm : zhour ? zh_zm : cheeky ? cm_zm : cosmic ? cs_zm : lb_zm;
-wire  [13:0] zs_to = dcastle ? dc_zs : lb_zs;
+/////////////////////////////  Shared CPU / sound chip pool  /////////////////////////////
+// Only one board runs at a time, so each CPU / sound chip is instanced once here and driven by the active board's
+// bus (rtl/chip_pool_pkg.sv), selected by variant; outputs fan out to every board. Unselected boards stay in reset.
+// Lady Bug is the default (its reset is held for the other boards). RESET_n / rst are on the bus (see the package).
 
-T80pa #(.Mode(0)) main_z80
+// z80pa_0: Lady Bug / Space Raider / Mrs. Dynamite main, Mr. Do!, Castle main, Zero Hour / Red Clash, Cheeky Mouse, Cosmic boards
+chip_pool_pkg::z80pa_i_t lb_z80pa_0_i, md_z80pa_0_i, dc_z80pa_0_i, zh_z80pa_0_i, cm_z80pa_0_i, cs_z80pa_0_i, z80pa_0_i;
+chip_pool_pkg::z80pa_o_t z80pa_0_o;
+assign z80pa_0_i = mrdo ? md_z80pa_0_i : dcastle ? dc_z80pa_0_i : zhour ? zh_z80pa_0_i : cheeky ? cm_z80pa_0_i :
+                   cosmic ? cs_z80pa_0_i : lb_z80pa_0_i;
+
+wire [15:0] z80pa_0_a;
+wire  [7:0] z80pa_0_do;
+wire        z80pa_0_m1_n, z80pa_0_mreq_n, z80pa_0_iorq_n, z80pa_0_rd_n, z80pa_0_wr_n, z80pa_0_rfsh_n;
+
+T80pa #(.Mode(0)) z80pa_0
 (
-    .RESET_n (zm_to[13]), .CLK(clk), .CEN_p(zm_to[12]), .CEN_n(zm_to[11]),
-    .WAIT_n  (zm_to[10]), .INT_n(zm_to[9]), .NMI_n(zm_to[8]), .BUSRQ_n(1'b1),
-    .M1_n(zm_from[29]), .MREQ_n(zm_from[28]), .IORQ_n(zm_from[27]), .RD_n(zm_from[26]), .WR_n(zm_from[25]),
-    .RFSH_n(zm_from[24]), .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(zm_from[23:8]), .DI(zm_to[7:0]), .DO(zm_from[7:0]),
+    .RESET_n (z80pa_0_i.reset_n), .CLK(clk), .CEN_p(z80pa_0_i.cen_p), .CEN_n(z80pa_0_i.cen_n),
+    .WAIT_n  (z80pa_0_i.wait_n), .INT_n(z80pa_0_i.int_n), .NMI_n(z80pa_0_i.nmi_n), .BUSRQ_n(1'b1),
+    .M1_n(z80pa_0_m1_n), .MREQ_n(z80pa_0_mreq_n), .IORQ_n(z80pa_0_iorq_n), .RD_n(z80pa_0_rd_n), .WR_n(z80pa_0_wr_n),
+    .RFSH_n(z80pa_0_rfsh_n), .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(z80pa_0_a), .DI(z80pa_0_i.di), .DO(z80pa_0_do),
     .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0)
 );
 
-T80pa #(.Mode(0)) sub_z80
+assign z80pa_0_o.a = z80pa_0_a;           assign z80pa_0_o.dout = z80pa_0_do;
+assign z80pa_0_o.m1_n = z80pa_0_m1_n;     assign z80pa_0_o.mreq_n = z80pa_0_mreq_n; assign z80pa_0_o.iorq_n = z80pa_0_iorq_n;
+assign z80pa_0_o.rd_n = z80pa_0_rd_n;     assign z80pa_0_o.wr_n = z80pa_0_wr_n;     assign z80pa_0_o.rfsh_n = z80pa_0_rfsh_n;
+
+// z80pa_1: Space Raider / Mrs. Dynamite 8203 sub, Castle sub
+chip_pool_pkg::z80pa_i_t lb_z80pa_1_i, dc_z80pa_1_i, z80pa_1_i;
+chip_pool_pkg::z80pa_o_t z80pa_1_o;
+assign z80pa_1_i = dcastle ? dc_z80pa_1_i : lb_z80pa_1_i;
+
+wire [15:0] z80pa_1_a;
+wire  [7:0] z80pa_1_do;
+wire        z80pa_1_m1_n, z80pa_1_mreq_n, z80pa_1_iorq_n, z80pa_1_rd_n, z80pa_1_wr_n, z80pa_1_rfsh_n;
+
+T80pa #(.Mode(0)) z80pa_1
 (
-    .RESET_n (zs_to[13]), .CLK(clk), .CEN_p(zs_to[12]), .CEN_n(zs_to[11]),
-    .WAIT_n  (zs_to[10]), .INT_n(zs_to[9]), .NMI_n(zs_to[8]), .BUSRQ_n(1'b1),
-    .M1_n(zs_from[29]), .MREQ_n(zs_from[28]), .IORQ_n(zs_from[27]), .RD_n(zs_from[26]), .WR_n(zs_from[25]),
-    .RFSH_n(zs_from[24]), .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(zs_from[23:8]), .DI(zs_to[7:0]), .DO(zs_from[7:0]),
+    .RESET_n (z80pa_1_i.reset_n), .CLK(clk), .CEN_p(z80pa_1_i.cen_p), .CEN_n(z80pa_1_i.cen_n),
+    .WAIT_n  (z80pa_1_i.wait_n), .INT_n(z80pa_1_i.int_n), .NMI_n(z80pa_1_i.nmi_n), .BUSRQ_n(1'b1),
+    .M1_n(z80pa_1_m1_n), .MREQ_n(z80pa_1_mreq_n), .IORQ_n(z80pa_1_iorq_n), .RD_n(z80pa_1_rd_n), .WR_n(z80pa_1_wr_n),
+    .RFSH_n(z80pa_1_rfsh_n), .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(z80pa_1_a), .DI(z80pa_1_i.di), .DO(z80pa_1_do),
     .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0)
 );
+
+assign z80pa_1_o.a = z80pa_1_a;           assign z80pa_1_o.dout = z80pa_1_do;
+assign z80pa_1_o.m1_n = z80pa_1_m1_n;     assign z80pa_1_o.mreq_n = z80pa_1_mreq_n; assign z80pa_1_o.iorq_n = z80pa_1_iorq_n;
+assign z80pa_1_o.rd_n = z80pa_1_rd_n;     assign z80pa_1_o.wr_n = z80pa_1_wr_n;     assign z80pa_1_o.rfsh_n = z80pa_1_rfsh_n;
+
+// SN76489 x 7 (jt89, Jose Tejada, unmodified): Lady Bug sound unit (Lady Bug + 8203 boards) 0-1, 8203 sub 2-6,
+// Mr. Do! 0-1, Castle 0-3
+chip_pool_pkg::sn76489_i_t [6:0] lb_sn76489_i;
+chip_pool_pkg::sn76489_i_t [1:0] md_sn76489_i;
+chip_pool_pkg::sn76489_i_t [3:0] dc_sn76489_i;
+chip_pool_pkg::sn76489_o_t [6:0] sn76489_o;
+
+genvar si;
+generate
+    for (si = 0; si < 7; si = si + 1) begin : g_sn76489
+        chip_pool_pkg::sn76489_i_t i;
+        if (si < 2)      begin : g0 assign i = mrdo ? md_sn76489_i[si] : dcastle ? dc_sn76489_i[si] : lb_sn76489_i[si]; end
+        else if (si < 4) begin : g1 assign i = dcastle ? dc_sn76489_i[si] : lb_sn76489_i[si]; end
+        else             begin : gn assign i = lb_sn76489_i[si]; end
+        wire [10:0] sound;
+        wire        ready;
+        jt89 sn76489
+        (
+            .rst(i.rst), .clk(clk), .clk_en(i.ce), .wr_n(i.wr_n), .cs_n(i.cs_n), .din(i.din), .sound(sound), .ready(ready)
+        );
+        assign sn76489_o[si].sound = sound; assign sn76489_o[si].ready = ready;
+    end
+endgenerate
 
 /////////////////////////////  Lady Bug  /////////////////////////////
 
@@ -307,10 +351,12 @@ logic       ov_hbl, ov_vbl, fb_hbl, fb_vbl;
 
 ladybug_machine ladybug
 (
-    .z80m_o          (lb_zm),
-    .z80m_i          (zm_from),
-    .z80s_o          (lb_zs),
-    .z80s_i          (zs_from),
+    .z80pa_0_i       (lb_z80pa_0_i),
+    .z80pa_0_o       (z80pa_0_o),
+    .z80pa_1_i       (lb_z80pa_1_i),
+    .z80pa_1_o       (z80pa_1_o),
+    .sn76489_i       (lb_sn76489_i),
+    .sn76489_o       (sn76489_o),
     .clk_20mhz_i     (clk),
     .ext_res_n_i     (~reset & ~mrdo & ~dcastle & ~zhour & ~cheeky & ~cosmic & ~tms),
     .pause_i         (pause),
@@ -459,8 +505,10 @@ logic signed [15:0] md_audio;
 
 mrdo_board mrdo_b
 (
-    .z80_o        (md_zm),
-    .z80_i        (zm_from),
+    .z80pa_0_i    (md_z80pa_0_i),
+    .z80pa_0_o    (z80pa_0_o),
+    .sn76489_i    (md_sn76489_i),
+    .sn76489_o    (sn76489_o[1:0]),
     .clk          (clk),
     .reset        (reset | ~mrdo),
     .pause        (pause),
@@ -507,10 +555,12 @@ logic signed [15:0] dc_audio;
 
 docastle_board docastle_b
 (
-    .z80m_o       (dc_zm),
-    .z80m_i       (zm_from),
-    .z80s_o       (dc_zs),
-    .z80s_i       (zs_from),
+    .z80pa_0_i    (dc_z80pa_0_i),
+    .z80pa_0_o    (z80pa_0_o),
+    .z80pa_1_i    (dc_z80pa_1_i),
+    .z80pa_1_o    (z80pa_1_o),
+    .sn76489_i    (dc_sn76489_i),
+    .sn76489_o    (sn76489_o[3:0]),
     .clk          (clk),
     .reset        (reset | ~dcastle),
     .pause        (pause),
@@ -564,8 +614,8 @@ logic signed [15:0] zh_audio;
 
 zerohour_board zerohour_b
 (
-    .z80_o        (zh_zm),
-    .z80_i        (zm_from),
+    .z80pa_0_i    (zh_z80pa_0_i),
+    .z80pa_0_o    (z80pa_0_o),
     .clk          (clk),
     .reset        (reset | ~zhour),
     .pause        (pause),
@@ -611,8 +661,8 @@ logic signed [15:0] cm_audio;
 
 cheekyms_board cheekyms_b
 (
-    .z80_o        (cm_zm),
-    .z80_i        (zm_from),
+    .z80pa_0_i    (cm_z80pa_0_i),
+    .z80pa_0_o    (z80pa_0_o),
     .clk          (clk),
     .reset        (reset | ~cheeky),
     .pause        (pause),
@@ -667,8 +717,8 @@ wire   [7:0] cs_kind = variant - 8'd13;
 
 cosmic_board cosmic_b
 (
-    .z80_o        (cs_zm),
-    .z80_i        (zm_from),
+    .z80pa_0_i    (cs_z80pa_0_i),
+    .z80pa_0_o    (z80pa_0_o),
     .clk          (clk),
     .reset        (reset | ~cosmic),
     .pause        (pause),

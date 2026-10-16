@@ -17,7 +17,7 @@
 //  pest dies:  555 1k / 47k / 0.033u, RESET = pest dies;   coin / extra: 555 1k / 47k / 0.01u, RESET = coin
 //  Mix: node A (R12 / R13 / R17 / R39 / R42 100k, R24 / R34 51k, Q1) -> R43 10k -> node B (R46 100k coin,
 //  VR1 1k); solved: VB = 500 * sum(V / R) + 0.00946 * Vcoin. Output = VR1 wiper (VB / 2), MAME scale.
-//  Engine: as rtl/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32, 1 V = 2^24).
+//  Engine: as rtl/boards/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32, 1 V = 2^24).
 //
 //============================================================================
 

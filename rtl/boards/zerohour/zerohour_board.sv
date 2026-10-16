@@ -25,8 +25,8 @@
 
 module zerohour_board
 (
-    output logic        [13:0] z80_o,          // shared T80 (rtl/z80_socket.sv)
-    input  logic        [29:0] z80_i,
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_board.sv)
+    input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
     input  logic               pause,
@@ -113,35 +113,22 @@ logic  [7:0] din, dout;
 logic        int_n = 1'b1;
 logic  [1:0] coin_d = 2'b00;
 
-z80_socket cpu
-(
-    .RESET_n   (~reset),
-    .CLK       (clk),
-    .CEN_p     (cen_p & ~pause),
-    .CEN_n     (cen_n & ~pause),
-    .WAIT_n    (1'b1),
-    .INT_n     (int_n),
-    .NMI_n     (~coin[1]),                     // edge-triggered in the Z80
-    .BUSRQ_n   (1'b1),
-    .M1_n      (m1_n),
-    .MREQ_n    (mreq_n),
-    .IORQ_n    (iorq_n),
-    .RD_n      (rd_n),
-    .WR_n      (wr_n),
-    .RFSH_n    (rfsh_n),
-    .HALT_n    (),
-    .BUSAK_n   (),
-    .OUT0      (1'b0),
-    .A         (a),
-    .DI        (din),
-    .DO        (dout),
-    .R800_mode (1'b0),
-    .REG       (),
-    .DIRSet    (1'b0),
-    .DIR       (212'd0),
-    .to_cpu    (z80_o),
-    .from_cpu  (z80_i)
-);
+// the shared T80pa in rtl/universal_board.sv
+assign z80pa_0_i.reset_n = ~reset;
+assign z80pa_0_i.cen_p   = cen_p & ~pause;
+assign z80pa_0_i.cen_n   = cen_n & ~pause;
+assign z80pa_0_i.wait_n  = 1'b1;
+assign z80pa_0_i.int_n   = int_n;
+assign z80pa_0_i.nmi_n   = ~coin[1];
+assign z80pa_0_i.di      = din;
+assign m1_n = z80pa_0_o.m1_n;
+assign mreq_n = z80pa_0_o.mreq_n;
+assign iorq_n = z80pa_0_o.iorq_n;
+assign rd_n = z80pa_0_o.rd_n;
+assign wr_n = z80pa_0_o.wr_n;
+assign rfsh_n = z80pa_0_o.rfsh_n;
+assign a = z80pa_0_o.a;
+assign dout = z80pa_0_o.dout;
 
 wire mem     = !mreq_n && rfsh_n;
 wire wr      = !wr_n;
@@ -231,7 +218,7 @@ always_comb begin
 end
 
 // ------------------------------------------------------------------ sound
-// Zero Hour 8011 sound board (discrete, rtl/zerohour/zerohour_sound.sv); Red Clash's sound board is not modelled
+// Zero Hour 8011 sound board (discrete, rtl/boards/zerohour/zerohour_sound.sv); Red Clash's sound board is not modelled
 logic signed [15:0] zh_snd;
 
 zerohour_sound sound

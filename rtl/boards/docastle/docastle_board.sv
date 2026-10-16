@@ -33,10 +33,12 @@
 
 module docastle_board
 (
-    output logic        [13:0] z80m_o,         // shared T80s (rtl/z80_socket.sv): main
-    input  logic        [29:0] z80m_i,
-    output logic        [13:0] z80s_o,         // sub
-    input  logic        [29:0] z80s_i,
+    output chip_pool_pkg::z80pa_i_t         z80pa_0_i,   // shared Z80s (rtl/universal_board.sv): main
+    input  chip_pool_pkg::z80pa_o_t         z80pa_0_o,
+    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,   // sub
+    input  chip_pool_pkg::z80pa_o_t         z80pa_1_o,
+    output chip_pool_pkg::sn76489_i_t [3:0] sn76489_i,   // shared SN76489s 0-3
+    input  chip_pool_pkg::sn76489_o_t [3:0] sn76489_o,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
     input  logic               pause,
@@ -118,15 +120,22 @@ logic [15:0] m_a;
 logic  [7:0] m_di, m_do;
 logic        m_wait_n, m_int_n;
 
-z80_socket main_cpu
-(
-    .RESET_n (~reset), .CLK(clk), .CEN_p(cpu_p), .CEN_n(cpu_n),
-    .WAIT_n  (m_wait_n), .INT_n(m_int_n), .NMI_n(1'b1), .BUSRQ_n(1'b1),
-    .M1_n(m_m1_n), .MREQ_n(m_mreq_n), .IORQ_n(m_iorq_n), .RD_n(m_rd_n), .WR_n(m_wr_n), .RFSH_n(m_rfsh_n),
-    .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(m_a), .DI(m_di), .DO(m_do),
-    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0),
-    .to_cpu(z80m_o), .from_cpu(z80m_i)
-);
+// the shared T80pa z80pa_0 in rtl/universal_board.sv
+assign z80pa_0_i.reset_n = ~reset;
+assign z80pa_0_i.cen_p   = cpu_p;
+assign z80pa_0_i.cen_n   = cpu_n;
+assign z80pa_0_i.wait_n  = m_wait_n;
+assign z80pa_0_i.int_n   = m_int_n;
+assign z80pa_0_i.nmi_n   = 1'b1;
+assign z80pa_0_i.di      = m_di;
+assign m_m1_n   = z80pa_0_o.m1_n;
+assign m_mreq_n = z80pa_0_o.mreq_n;
+assign m_iorq_n = z80pa_0_o.iorq_n;
+assign m_rd_n   = z80pa_0_o.rd_n;
+assign m_wr_n   = z80pa_0_o.wr_n;
+assign m_rfsh_n = z80pa_0_o.rfsh_n;
+assign m_a      = z80pa_0_o.a;
+assign m_do     = z80pa_0_o.dout;
 
 wire m_mem = !m_mreq_n && m_rfsh_n;
 wire m_io  = !m_iorq_n && m_m1_n;
@@ -164,15 +173,22 @@ logic  [7:0] s_di, s_do;
 logic        s_int_n = 1'b1, s_nmi_n = 1'b1;
 logic  [3:0] sn_ready;
 
-z80_socket sub_cpu
-(
-    .RESET_n (~reset), .CLK(clk), .CEN_p(cpu_p), .CEN_n(cpu_n),
-    .WAIT_n  (&sn_ready), .INT_n(s_int_n), .NMI_n(s_nmi_n), .BUSRQ_n(1'b1),
-    .M1_n(s_m1_n), .MREQ_n(s_mreq_n), .IORQ_n(s_iorq_n), .RD_n(s_rd_n), .WR_n(s_wr_n), .RFSH_n(s_rfsh_n),
-    .HALT_n(), .BUSAK_n(), .OUT0(1'b0), .A(s_a), .DI(s_di), .DO(s_do),
-    .R800_mode(1'b0), .REG(), .DIRSet(1'b0), .DIR(212'd0),
-    .to_cpu(z80s_o), .from_cpu(z80s_i)
-);
+// the shared T80pa z80pa_1 in rtl/universal_board.sv
+assign z80pa_1_i.reset_n = ~reset;
+assign z80pa_1_i.cen_p   = cpu_p;
+assign z80pa_1_i.cen_n   = cpu_n;
+assign z80pa_1_i.wait_n  = &sn_ready;
+assign z80pa_1_i.int_n   = s_int_n;
+assign z80pa_1_i.nmi_n   = s_nmi_n;
+assign z80pa_1_i.di      = s_di;
+assign s_m1_n   = z80pa_1_o.m1_n;
+assign s_mreq_n = z80pa_1_o.mreq_n;
+assign s_iorq_n = z80pa_1_o.iorq_n;
+assign s_rd_n   = z80pa_1_o.rd_n;
+assign s_wr_n   = z80pa_1_o.wr_n;
+assign s_rfsh_n = z80pa_1_o.rfsh_n;
+assign s_a      = z80pa_1_o.a;
+assign s_do     = z80pa_1_o.dout;
 
 wire s_mem = !s_mreq_n && s_rfsh_n;
 wire s_rom = s_mem && s_a[15:14] == 2'b00;
@@ -253,11 +269,14 @@ logic signed [10:0] sn_out[4];
 genvar i;
 generate
     for (i = 0; i < 4; i++) begin : sn
-        jt89 psg
-        (
-            .rst(reset), .clk(clk), .clk_en(cpu_p),
-            .wr_n(s_wr_n), .cs_n(~(s_snb && s_sn_n == i)), .din(s_do), .sound(sn_out[i]), .ready(sn_ready[i])
-        );
+        // the shared SN76489s in rtl/universal_board.sv
+        assign sn76489_i[i].rst  = reset;
+        assign sn76489_i[i].ce   = cpu_p;
+        assign sn76489_i[i].wr_n = s_wr_n;
+        assign sn76489_i[i].cs_n = ~(s_snb && s_sn_n == i);
+        assign sn76489_i[i].din  = s_do;
+        assign sn_out[i]   = sn76489_o[i].sound;
+        assign sn_ready[i] = sn76489_o[i].ready;
     end
 endgenerate
 wire signed [12:0] snd_sum = sn_out[0] + sn_out[1] + sn_out[2] + sn_out[3];

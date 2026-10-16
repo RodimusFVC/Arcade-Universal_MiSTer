@@ -16,10 +16,12 @@
 
 module ladybug_machine
 (
-    output logic        [13:0] z80m_o,         // shared T80s (rtl/z80_socket.sv): main
-    input  logic        [29:0] z80m_i,
-    output logic        [13:0] z80s_o,         // 8203 sub
-    input  logic        [29:0] z80s_i,
+    output chip_pool_pkg::z80pa_i_t          z80pa_0_i,   // shared main Z80 (rtl/universal_board.sv)
+    input  chip_pool_pkg::z80pa_o_t          z80pa_0_o,
+    output chip_pool_pkg::z80pa_i_t          z80pa_1_i,   // shared Z80: 8203 sub
+    input  chip_pool_pkg::z80pa_o_t          z80pa_1_o,
+    output chip_pool_pkg::sn76489_i_t  [6:0] sn76489_i,   // shared SN76489s: 0-1 sound unit, 2-6 8203 sub
+    input  chip_pool_pkg::sn76489_o_t  [6:0] sn76489_o,
     input  logic               clk_20mhz_i,     // 19.656 MHz
     input  logic               ext_res_n_i,
     input  logic               pause_i,
@@ -124,8 +126,8 @@ assign hs_data_out = hs_cs_cpu ? hs_data_out_cpu : hs_data_out_vram;
 
 ladybug_cpu_unit cpu_b
 (
-    .z80_o          (z80m_o),
-    .z80_i          (z80m_i),
+    .z80pa_0_i      (z80pa_0_i),
+    .z80pa_0_o      (z80pa_0_o),
     .clk_20mhz_i    (clk_20mhz_i),
     .cpu_cen_p_i    (cpu_cen_p_s),
     .cpu_cen_n_i    (cpu_cen_n_s),
@@ -219,6 +221,8 @@ ladybug_video_unit video_b
 
 ladybug_sound_unit sound_b
 (
+    .sn76489_i      (sn76489_i[1:0]),
+    .sn76489_o      (sn76489_o[1:0]),
     .clk_20mhz_i    (clk_20mhz_i),
     .clk_en_4mhz_i  (cpu_cen_p_s & ~pause_i),
     .por_n_i        (por_n_s),
@@ -237,8 +241,10 @@ assign rgb_b_o = board_8203_i ? {rgb_n_s[7], rgb_n_s[8]} : lb_b_s;
 
 sraider_sub sub_b
 (
-    .z80_o    (z80s_o),
-    .z80_i    (z80s_i),
+    .z80pa_1_i (z80pa_1_i),
+    .z80pa_1_o (z80pa_1_o),
+    .sn76489_i (sn76489_i[6:2]),
+    .sn76489_o (sn76489_o[6:2]),
     .clk      (clk_20mhz_i),
     .cen_p    (cpu_cen_p_s),
     .cen_n    (cpu_cen_n_s),

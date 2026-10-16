@@ -11,6 +11,8 @@
 
 module ladybug_sound_unit
 (
+    output chip_pool_pkg::sn76489_i_t [1:0] sn76489_i,   // shared SN76489s (rtl/universal_board.sv)
+    input  chip_pool_pkg::sn76489_o_t [1:0] sn76489_o,
     input  logic               clk_20mhz_i,
     input  logic               clk_en_4mhz_i,
     input  logic               por_n_i,
@@ -25,29 +27,22 @@ module ladybug_sound_unit
 logic               ready_b1_s, ready_c1_s;
 logic signed [10:0] aout_b1_s, aout_c1_s;
 
-jt89 snd_b1_b
-(
-    .rst    (~por_n_i),
-    .clk    (clk_20mhz_i),
-    .clk_en (clk_en_4mhz_i),
-    .wr_n   (wr_n_i),
-    .cs_n   (cs11_n_i),
-    .din    (d_from_cpu_i),
-    .sound  (aout_b1_s),
-    .ready  (ready_b1_s)
-);
+// B1 = shared SN76489 0, C1 = 1 (rtl/universal_board.sv)
+assign sn76489_i[0].rst  = ~por_n_i;
+assign sn76489_i[0].ce   = clk_en_4mhz_i;
+assign sn76489_i[0].wr_n = wr_n_i;
+assign sn76489_i[0].cs_n = cs11_n_i;
+assign sn76489_i[0].din  = d_from_cpu_i;
+assign aout_b1_s  = sn76489_o[0].sound;
+assign ready_b1_s = sn76489_o[0].ready;
 
-jt89 snd_c1_b
-(
-    .rst    (~por_n_i),
-    .clk    (clk_20mhz_i),
-    .clk_en (clk_en_4mhz_i),
-    .wr_n   (wr_n_i),
-    .cs_n   (cs12_n_i),
-    .din    (d_from_cpu_i),
-    .sound  (aout_c1_s),
-    .ready  (ready_c1_s)
-);
+assign sn76489_i[1].rst  = ~por_n_i;
+assign sn76489_i[1].ce   = clk_en_4mhz_i;
+assign sn76489_i[1].wr_n = wr_n_i;
+assign sn76489_i[1].cs_n = cs12_n_i;
+assign sn76489_i[1].din  = d_from_cpu_i;
+assign aout_c1_s  = sn76489_o[1].sound;
+assign ready_c1_s = sn76489_o[1].ready;
 
 // Equal mix (MAME routes both at 0.5)
 wire signed [11:0] sum_s = {aout_b1_s[10], aout_b1_s} + {aout_c1_s[10], aout_c1_s};

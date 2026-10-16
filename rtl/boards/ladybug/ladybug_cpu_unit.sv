@@ -20,8 +20,8 @@
 
 module ladybug_cpu_unit
 (
-    output logic [13:0] z80_o,          // shared T80 (rtl/z80_socket.sv)
-    input  logic [29:0] z80_i,
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,   // shared Z80 (rtl/universal_board.sv)
+    input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
     input  logic        clk_20mhz_i,
     input  logic        cpu_cen_p_i,
     input  logic        cpu_cen_n_i,
@@ -77,35 +77,22 @@ logic        ram_cpu_cs_n_s;
 
 assign wait_n_s = sound_wait_n_i & wait_n_i;
 
-z80_socket T80pa_b
-(
-    .RESET_n   (res_n_i),
-    .CLK       (clk_20mhz_i),
-    .CEN_p     (cpu_cen_p_i & ~pause_i),
-    .CEN_n     (cpu_cen_n_i & ~pause_i),
-    .WAIT_n    (wait_n_s),
-    .INT_n     (int_n_s),
-    .NMI_n     (nmi_n_s),
-    .BUSRQ_n   (1'b1),
-    .M1_n      (m1_n_s),
-    .MREQ_n    (mreq_n_s),
-    .IORQ_n    (iorq_n_s),
-    .RD_n      (rd_n_s),
-    .WR_n      (wr_n_s),
-    .RFSH_n    (rfsh_n_s),
-    .HALT_n    (),
-    .BUSAK_n   (),
-    .OUT0      (1'b0),
-    .A         (a_s),
-    .DI        (d_to_cpu_s),
-    .DO        (d_from_cpu_s),
-    .R800_mode (1'b0),
-    .REG       (),
-    .DIRSet    (1'b0),
-    .DIR       (212'd0),
-    .to_cpu    (z80_o),
-    .from_cpu  (z80_i)
-);
+// the shared T80pa in rtl/universal_board.sv
+assign z80pa_0_i.reset_n = res_n_i;
+assign z80pa_0_i.cen_p   = cpu_cen_p_i & ~pause_i;
+assign z80pa_0_i.cen_n   = cpu_cen_n_i & ~pause_i;
+assign z80pa_0_i.wait_n  = wait_n_s;
+assign z80pa_0_i.int_n   = int_n_s;
+assign z80pa_0_i.nmi_n   = nmi_n_s;
+assign z80pa_0_i.di      = d_to_cpu_s;
+assign m1_n_s       = z80pa_0_o.m1_n;
+assign mreq_n_s     = z80pa_0_o.mreq_n;
+assign iorq_n_s     = z80pa_0_o.iorq_n;
+assign rd_n_s       = z80pa_0_o.rd_n;
+assign wr_n_s       = z80pa_0_o.wr_n;
+assign rfsh_n_s     = z80pa_0_o.rfsh_n;
+assign a_s          = z80pa_0_o.a;
+assign d_from_cpu_s = z80pa_0_o.dout;
 
 assign d_from_cpu_o = d_from_cpu_s;
 

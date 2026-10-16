@@ -5,7 +5,7 @@
 //
 //  Effect structure from the Cosmic Alien manual sound schematic (p.26): pins 1-12 = 7000-700B (data != 0),
 //  pin 13 = the coin switch. Pitches and time constants fitted to recordings of the board (MAME 'cosmica'
-//  samples), as for rtl/cosmic/panic_sound.sv:
+//  samples), as for rtl/boards/cosmic/panic_sound.sv:
 //    background (while enabled): IC5b ~11 Hz samples the noise onto the IC5a 556 CV -> random pitch steps
 //    dive A (pin 1): 3150 Hz, falling to ~2300 Hz after 1.5 s of hold
 //    dive B (pin 3, select G.S.B / M.S.B / L.S.B on pins 4-6): one-shot sweep 5.6 kHz -> 700 Hz (tau 0.69 s);
@@ -15,7 +15,7 @@
 //    extend (pin 10) / coin (pin 13): IC7b 556 tone, 1026 Hz 25 % pulse (as measured on the Space Panic copy
 //      of the same circuit)
 //    pin 12 sound enable: IC1 shorts the mix bus while low
-//  Engine as rtl/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32); envelopes 1.0 = 2^24.
+//  Engine as rtl/boards/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32); envelopes 1.0 = 2^24.
 //
 //============================================================================
 
