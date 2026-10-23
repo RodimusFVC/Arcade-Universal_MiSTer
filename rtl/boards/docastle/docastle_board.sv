@@ -75,10 +75,18 @@ module docastle_board
     input  logic        [31:0] rom_tile_d,
     output logic        [11:0] rom_spr_a,      // gfx2 row: 8 byte lanes
     input  logic        [63:0] rom_spr_d,
-    output logic        [16:0] rom_spr8_a,     // idsoccer gfx2 (128K, byte-wide)
-    input  logic         [7:0] rom_spr8_d,
+    // DDR3-2026-10-23: idsoccer gfx2 and ADPCM come from DDR3 (ddr_rom.sv). Originals:
+    // output logic        [16:0] rom_spr8_a,     // idsoccer gfx2 (128K, byte-wide)
+    // input  logic         [7:0] rom_spr8_d,
+    // output logic        [15:0] rom_adpcm_a,
+    // input  logic         [7:0] rom_adpcm_d,
+    output logic        [16:0] rom_spr8_a,     // idsoccer gfx2 (128K): byte address of an 8-byte sprite row
+    output logic               rom_spr8_req,   // pulse; rom_spr8_a held until rom_spr8_rdy
+    input  logic               rom_spr8_rdy,   // pulse: rom_spr8_q = the row (byte k = bits 8k+7:8k)
+    input  logic        [63:0] rom_spr8_q,
     output logic        [15:0] rom_adpcm_a,
     input  logic         [7:0] rom_adpcm_d,
+    input  logic               rom_adpcm_rdy,  // rom_adpcm_d is the byte at rom_adpcm_a
 
     input  logic               prom_wr,
     input  logic         [7:0] prom_a,
@@ -294,6 +302,10 @@ logic  [7:0] adp_ctl = 8'h00;
 logic  [3:0] adp_nib = 4'd0;
 logic        adp_step = 1'b0;
 wire         adp_wr = m_adp && !m_wr_n;
+// DDR3-2026-10-23: a VCK that needs a byte not yet fetched from DDR3 waits for it (only right after a block start)
+logic        adp_vpend = 1'b0;
+wire         adp_go   = (vck || adp_vpend) && !pause;
+wire         adp_need = !(adp_pos >= adp_end || adp_idle);
 
 assign rom_adpcm_a = adp_pos[16:1];
 
@@ -302,6 +314,7 @@ always_ff @(posedge clk) begin
     adp_step <= 1'b0;
     if (reset) begin
         adp_idle <= 1'b1; adp_rst <= 1'b1; adp_ctl <= 8'h00;
+        adp_vpend <= 1'b0;
     end
     else begin
         if (adp_wr && !adp_wr_d) begin
@@ -313,15 +326,30 @@ always_ff @(posedge clk) begin
             end
             adp_ctl <= m_do;
         end
-        if (vck && !pause) begin
-            if (adp_pos >= adp_end || adp_idle) begin
-                adp_idle <= 1'b1; adp_rst <= 1'b1;
-            end
+        // DDR3-2026-10-23: original VCK step below
+        // if (vck && !pause) begin
+        //     if (adp_pos >= adp_end || adp_idle) begin
+        //         adp_idle <= 1'b1; adp_rst <= 1'b1;
+        //     end
+        //     else begin
+        //         adp_nib <= adp_pos[0] ? rom_adpcm_d[3:0] : rom_adpcm_d[7:4];
+        //         adp_pos <= adp_pos + 17'd1;
+        //     end
+        //     adp_step <= 1'b1;                                   // decoder runs after the callback, as in MAME
+        // end
+        if (adp_go) begin
+            if (adp_need && !rom_adpcm_rdy) adp_vpend <= 1'b1;
             else begin
-                adp_nib <= adp_pos[0] ? rom_adpcm_d[3:0] : rom_adpcm_d[7:4];
-                adp_pos <= adp_pos + 17'd1;
+                adp_vpend <= 1'b0;
+                if (!adp_need) begin
+                    adp_idle <= 1'b1; adp_rst <= 1'b1;
+                end
+                else begin
+                    adp_nib <= adp_pos[0] ? rom_adpcm_d[3:0] : rom_adpcm_d[7:4];
+                    adp_pos <= adp_pos + 17'd1;
+                end
+                adp_step <= 1'b1;                               // decoder runs after the callback, as in MAME
             end
-            adp_step <= 1'b1;                                   // decoder runs after the callback, as in MAME
         end
     end
 end
@@ -520,6 +548,7 @@ wire        go_line = ce_pix && de_q && !de_pix && py < 8'd190;
 
 always_ff @(posedge clk) begin
     lb_we <= 1'b0;
+    rom_spr8_req <= 1'b0;
     case (sp_st)
         SP_IDLE: if (go_vbl || go_line || pend1) begin : start_line
                      logic [7:0] phys;
@@ -544,15 +573,21 @@ always_ff @(posedge clk) begin
                          sp_px     <= 4'd0;
                          sp_rom_ok <= 1'b0;
                          sp_st     <= idsoccer ? SP_FETCH : SP_PIX;
+                         rom_spr8_req <= idsoccer;                 // DDR3-2026-10-23: one 8-byte row read
                      end
                      else if (sp_e7 == 7'd0) sp_st <= SP_IDLE;
                      else begin sp_e7 <= sp_e7 - 7'd1; sp_st <= SP_ADDR; end
                  end
-        SP_FETCH: begin                                        // address k on the bus, byte k-1 arrives
-                     if (sp_k != 4'd0) sp_row8[{sp_k[2:0] - 3'd1, 3'b000} +: 8] <= rom_spr8_d;
-                     sp_rom8_a[2:0] <= sp_rom8_a[2:0] + 3'd1;
-                     sp_k <= sp_k + 4'd1;
-                     if (sp_k == 4'd8) sp_st <= SP_PIX;
+        // DDR3-2026-10-23: original byte-wide BRAM fetch below
+        // SP_FETCH: begin                                        // address k on the bus, byte k-1 arrives
+        //              if (sp_k != 4'd0) sp_row8[{sp_k[2:0] - 3'd1, 3'b000} +: 8] <= rom_spr8_d;
+        //              sp_rom8_a[2:0] <= sp_rom8_a[2:0] + 3'd1;
+        //              sp_k <= sp_k + 4'd1;
+        //              if (sp_k == 4'd8) sp_st <= SP_PIX;
+        //          end
+        SP_FETCH: if (rom_spr8_rdy) begin                      // the whole row in one DDR3 word
+                     sp_row8 <= rom_spr8_q;
+                     sp_st   <= SP_PIX;
                  end
         SP_PIX:  begin
                      if (!sp_rom_ok) sp_rom_ok <= 1'b1;        // ROM read cycle

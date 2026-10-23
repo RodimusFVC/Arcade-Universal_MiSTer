@@ -49,7 +49,7 @@
         <part crc="b55aee56" name="z1.ic2"/>
         <part crc="9adabf46" name="z2.n2"/>
         <part crc="27fa3a50" name="z3.u6"/>
-        <part repeat="0x33FA0">00</part>
+        <part repeat="0xFFA0">00</part>
         <part crc="4c12f59d" name="zhi.k4"/>
         <part crc="6b9a6b6e" name="zhi.k5"/>
     </rom>

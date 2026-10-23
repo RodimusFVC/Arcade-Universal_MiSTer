@@ -41,6 +41,7 @@ wire        ioctl_upload;
 wire        ioctl_upload_req;
 wire  [7:0] ioctl_din;
 wire        ioctl_wr;
+wire        ddr_ioctl_wait;     // ddr_rom: index-0 byte being mirrored to DDR3
 wire  [7:0] ioctl_index;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
@@ -172,7 +173,9 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.ioctl_dout(ioctl_dout),
 	.ioctl_din(ioctl_din),
 	.ioctl_index(ioctl_index),
-	.ioctl_wait(1'b0),
+	// DDR3-2026-10-23: original
+	// .ioctl_wait(1'b0),
+	.ioctl_wait(ddr_ioctl_wait),
 
 	.joystick_0(joystick_0),
 	.joystick_1(joystick_1),
@@ -183,11 +186,14 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 
 ////////////////////   CLOCKS   ///////////////////
 
+wire        CLK_2X;         // 39.312 MHz = 2 x CLK_SYS, same VCO (phase-locked 2:1): reserved for the artwork domain
+
 pll pll
 (
 	.refclk(CLK_50M),
 	.rst(0),
 	.outclk_0(CLK_SYS),
+	.outclk_1(CLK_2X),
 	.reconfig_to_pll(reconfig_to_pll),
 	.reconfig_from_pll(reconfig_from_pll),
 	.locked(locked)
@@ -359,7 +365,45 @@ wire ce_pix;
 wire rotate_ccw = ~game_flags[7];  // ROT270 sets rotate CCW, ROT90 sets CW
 wire no_rotate  = ~game_vert | status[12] | direct_video;
 wire flip       = status[11];
-screen_rotate screen_rotate(.*);
+
+// DDR3-2026-10-23: screen_rotate's DDR3 writes go through ddr_rom (shared port). Original:
+// screen_rotate screen_rotate(.*);
+wire        sr_we;
+wire [28:0] sr_addr;
+wire [63:0] sr_din;
+wire  [7:0] sr_be;
+wire        ddr_row_req, ddr_row_rdy, ddr_byte_en, ddr_byte_rdy;
+wire [24:0] ddr_row_addr, ddr_byte_addr;
+wire [63:0] ddr_row_q;
+wire  [7:0] ddr_byte_q;
+
+screen_rotate screen_rotate
+(
+	.CLK_VIDEO(CLK_VIDEO), .CE_PIXEL(CE_PIXEL),
+	.VGA_R(VGA_R), .VGA_G(VGA_G), .VGA_B(VGA_B), .VGA_HS(VGA_HS), .VGA_VS(VGA_VS), .VGA_DE(VGA_DE),
+	.rotate_ccw(rotate_ccw), .no_rotate(no_rotate), .flip(flip), .video_rotated(video_rotated),
+	.FB_EN(FB_EN), .FB_FORMAT(FB_FORMAT), .FB_WIDTH(FB_WIDTH), .FB_HEIGHT(FB_HEIGHT), .FB_BASE(FB_BASE),
+	.FB_STRIDE(FB_STRIDE), .FB_VBL(FB_VBL), .FB_LL(FB_LL),
+	.DDRAM_CLK(), .DDRAM_BUSY(1'b0), .DDRAM_BURSTCNT(), .DDRAM_ADDR(sr_addr), .DDRAM_DIN(sr_din),
+	.DDRAM_BE(sr_be), .DDRAM_WE(sr_we), .DDRAM_RD()
+);
+
+// Every index-0 byte mirrored to DDR3 at 0x3C000000; Indoor Soccer reads its sprite rows and ADPCM from there
+ddr_rom ddr_rom
+(
+	.clk(CLK_SYS),
+	.ioctl_download(ioctl_download),
+	.ioctl_wr0(ioctl_wr & (ioctl_index == 8'd0)),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_dout),
+	.ioctl_wait(ddr_ioctl_wait),
+	.row_req(ddr_row_req), .row_addr(ddr_row_addr), .row_q(ddr_row_q), .row_rdy(ddr_row_rdy),
+	.byte_en(ddr_byte_en), .byte_addr(ddr_byte_addr), .byte_q(ddr_byte_q), .byte_rdy(ddr_byte_rdy),
+	.sr_we(sr_we), .sr_addr(sr_addr), .sr_din(sr_din), .sr_be(sr_be),
+	.DDRAM_CLK(DDRAM_CLK), .DDRAM_BUSY(DDRAM_BUSY), .DDRAM_BURSTCNT(DDRAM_BURSTCNT), .DDRAM_ADDR(DDRAM_ADDR),
+	.DDRAM_DOUT(DDRAM_DOUT), .DDRAM_DOUT_READY(DDRAM_DOUT_READY), .DDRAM_RD(DDRAM_RD), .DDRAM_DIN(DDRAM_DIN),
+	.DDRAM_BE(DDRAM_BE), .DDRAM_WE(DDRAM_WE)
+);
 
 arcade_video #(256,24) arcade_video
 (
@@ -412,6 +456,15 @@ universal_board board
 	.video_vblank(vblank),
 
 	.audio(audio),
+
+	.ddr_row_req(ddr_row_req),
+	.ddr_row_addr(ddr_row_addr),
+	.ddr_row_rdy(ddr_row_rdy),
+	.ddr_row_q(ddr_row_q),
+	.ddr_byte_en(ddr_byte_en),
+	.ddr_byte_addr(ddr_byte_addr),
+	.ddr_byte_q(ddr_byte_q),
+	.ddr_byte_rdy(ddr_byte_rdy),
 
 	.hs_address(hs_address),
 	.hs_data_in(hs_data_in),

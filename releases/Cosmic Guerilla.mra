@@ -1,0 +1,63 @@
+<misterromdescription>
+    <name>Cosmic Guerilla</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Cosmic Guerilla</series>
+    <year>1979</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Shooter</category>
+
+    <setname>cosmicg</setname>
+    <parent>cosmicg</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>2-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="3F,F8">
+        <dip name="Bonus Life" bits="4,5" ids="1000,1500,2000,None" values="1,2,3,0"/>
+        <dip name="Coinage" bits="6" ids="2C/1C,1C/1C" values="1,0"/>
+        <dip name="Lives" bits="7" ids="3,5"/>
+        <dip name="Cabinet" bits="9" ids="Upright,Cocktail"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="cosmicg.zip">
+        <part crc="e1b9f894" name="cosmicg1.bin"/>
+        <part crc="35c75346" name="cosmicg2.bin"/>
+        <part crc="82a49b48" name="cosmicg3.bin"/>
+        <part crc="1c1c934c" name="cosmicg4.bin"/>
+        <part crc="b1c00fbf" name="cosmicg5.bin"/>
+        <part crc="f03454ce" name="cosmicg6.bin"/>
+        <part crc="f33ebae7" name="cosmicg7.bin"/>
+        <part crc="472e4990" name="cosmicg8.bin"/>
+        <part repeat="0x6000">00</part>
+        <part crc="689c2c96" name="cosmicg9.bin"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            12 10 00 00 FF 3F F8 FF FF FF 80 00 01 80 80 80
+            00 00 00 00 13 14 05 04 03 0D 0C 0B 00 00 00 00
+            11 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Cosmic Guerilla (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

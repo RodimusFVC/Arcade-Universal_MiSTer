@@ -49,7 +49,7 @@
         <part crc="43989681" name="1.12f"/>
         <part crc="9adabf46" name="2.4a"/>
         <part crc="27fa3a50" name="3.11e"/>
-        <part repeat="0x33FA0">00</part>
+        <part repeat="0xFFA0">00</part>
         <part crc="64ca8b63" name="rc4.3e" offset="0x0" length="0x800"/>
         <part crc="fce610a2" name="rc5.3d" offset="0x0" length="0x800"/>
         <part crc="64ca8b63" name="rc4.3e" offset="0x800" length="0x800"/>

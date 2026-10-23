@@ -44,13 +44,17 @@ REGIONS = {
 REGION_OVERRIDE = {**{m: {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x30000, 0x04000), "spritecpu": None,
                      "gfx1": (0, 0x34000, 0x04000), "proms": (0, 0x3C000, 0x00200), "gfx2": (0, 0x40000, 0x08000)}
                     for m in ("docastle", "dorunrun")},
-                   # Indoor Soccer: gfx2 (128K) in the CRT Flip frame buffer RAM, ADPCM in the Lady Bug / Mr. Do! CPU ROMs
+                   # Indoor Soccer: gfx2 (128K) and ADPCM (64K) are read from the DDR3 copy of index 0 (rtl/ddr_rom.sv).
+                   # ADPCM at 0x60000 has no BRAM behind it, so it can't overwrite the Castle ROMs that now share RAM with
+                   # the Lady Bug CPU ROMs (2026-10-23; was split into 0x00000 / 0x10000).
                    "idsoccer": {"maincpu": (0, 0x20000, 0x0A000), "subcpu": (0, 0x30000, 0x04000), "spritecpu": None,
                                 "gfx1": (0, 0x34000, 0x08000), "proms": (0, 0x3C000, 0x00200), "gfx2": (0, 0x40000, 0x20000),
-                                "adpcm": "split"},
-                   # Zero Hour / Red Clash: gfx2 in the Castle sprite ROM lanes (64-bit rows); gfx3 is MAME's rearranged
-                   # copy of gfx2, decoded on read
-                   **{m: {"gfx2": (0, 0x40000, 0x02000), "gfx3": None} for m in ("zerohour", "redclash")},
+                                "adpcm": (0, 0x60000, 0x10000)},
+                   # Zero Hour / Red Clash: gfx2 in the Castle sprite ROM lanes (64-bit rows, lane offset 0x800); gfx3 is
+                   # MAME's rearranged copy of gfx2, decoded on read. At 0x1C000 (was 0x40000, 2026-10-23) so the image
+                   # ends below 0x20000: its zero padding must not stream through the Castle windows, which share RAM with
+                   # this board's CPU / char ROMs (tools/rom_audit.py padding check).
+                   **{m: {"gfx2": (0, 0x1C000, 0x02000), "gfx3": None} for m in ("zerohour", "redclash")},
                    # Cheeky Mouse: the two bitplanes of each gfx region in the Lady Bug byte-lane ROMs (one 2-bit read)
                    "cheekyms": {"chars": "split", "sprites": "split"},
                    # Cosmic boards: colour map / user2 in the Lady Bug char ROMs, the two bitplane halves of gfx1 in

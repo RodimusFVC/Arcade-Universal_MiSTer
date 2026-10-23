@@ -1,0 +1,61 @@
+<misterromdescription>
+    <name>Get A Way</name>
+    <region>World</region>
+    <homebrew>no</homebrew>
+    <bootleg>no</bootleg>
+    <version></version>
+    <alternative></alternative>
+    <platform></platform>
+    <series>Get A Way</series>
+    <year>1979</year>
+    <manufacturer>Universal</manufacturer>
+    <category>Driving</category>
+
+    <setname>getaway</setname>
+    <parent>getaway</parent>
+    <mameversion>0289</mameversion>
+    <rbf>Universal</rbf>
+    <about></about>
+
+    <resolution>15kHz</resolution>
+    <rotation>vertical (ccw)</rotation>
+    <flip>yes</flip>
+
+    <players>2 (alternating)</players>
+    <joystick>2-way</joystick>
+    <special_controls></special_controls>
+    <num_buttons>1</num_buttons>
+    <buttons names="Accelerate,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+
+    <switches default="A4,FA">
+        <dip name="Coinage" bits="0,1" ids="2C/1C,1C/1C,1 Coin/1 Credit (again),1C/2C" values="2,0,3,1"/>
+        <dip name="Game Time" bits="2,3" ids="Min I,Min II,Max I,Max II" values="3,2,1,0"/>
+        <dip name="Extended Play" bits="4,6" ids="None,2000,3000,4000,5000,6000,7000,8000"/>
+        <dip name="Extra Play" bits="7,9" ids="None,2000,3000,4000,5000,6000,7000,8000"/>
+        <dip name="Language" bits="10" ids="English,Japanese"/>
+    </switches>
+
+    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <rom index="0" md5="none" zip="getaway.zip">
+        <part crc="d7596a61" name="3901.a16"/>
+        <part crc="ad43edff" name="3903.a15"/>
+        <part crc="67e67b65" name="3902.a14"/>
+        <part crc="2728304f" name="3904.a13"/>
+        <part repeat="0x4000">00</part>
+        <part crc="90546543" name="3905.f6"/>
+        <part crc="fd878838" name="3906.f8"/>
+    </rom>
+
+    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <rom index="1">
+        <part>
+            13 10 00 00 FF FF FF A4 FA FF 80 80 80 00 01 80
+            11 13 00 00 00 00 00 00 05 03 04 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+            00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+        </part>
+    </rom>
+
+    <remark>Get A Way (Upright) (Universal)</remark>
+    <mratimestamp>20261011000000</mratimestamp>
+</misterromdescription>

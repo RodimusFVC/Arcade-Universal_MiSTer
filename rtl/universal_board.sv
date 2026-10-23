@@ -32,9 +32,11 @@
 //  Mr. Do's Castle board:
 //    0x20000 - 0x29FFF  maincpu    0x30000 - 0x33FFF  subcpu     0x34000 - 0x37FFF  gfx1 (tiles)
 //    0x3C000 - 0x3C0FF  proms      0x40000 - 0x47FFF  gfx2 (sprites)
-//  Indoor Soccer: gfx2 0x40000 - 0x5FFFF (in the CRT Flip frame buffer RAM), adpcm 0x0000-0x7FFF -> 0x00000,
-//    0x8000-0xFFFF -> 0x10000 (in the Lady Bug / Mr. Do! CPU ROMs, unused on this board)
-//  Zero Hour / Red Clash: maincpu 0x00000, gfx1 0x08000, proms 0x0C000, gfx2 0x40000 (Castle sprite ROM lanes)
+//  Indoor Soccer: gfx2 0x40000 - 0x5FFFF, adpcm 0x0000-0x7FFF -> 0x00000, 0x8000-0xFFFF -> 0x10000. Both are
+//    read from the DDR3 copy of index 0 (ddr_rom.sv, top level) since 2026-10-23; the BRAM writes are unused.
+//    (Before: gfx2 in the CRT Flip frame buffer RAM, adpcm in the Lady Bug / Mr. Do! CPU ROMs.)
+//  Zero Hour / Red Clash: maincpu 0x00000, gfx1 0x08000, proms 0x0C000, gfx2 0x1C000 (Castle sprite ROM lanes at
+//    offset 0x800; was 0x40000 until 2026-10-23 - the image must end below the Castle windows, see rom_audit.py)
 //  Cheeky Mouse: maincpu 0x00000, chars 0x08000 / 0x09000 (cm02 / cm01), sprites 0x0A000 / 0x0B000 (cm07 / cm08),
 //    proms 0x0C000
 //  Cosmic boards: maincpu 0x00000, user1 colour map 0x08000, user2 0x09000, gfx1 0x0A000 / 0x0B000 (halves),
@@ -79,6 +81,16 @@ module universal_board
 
     output logic signed [15:0] audio,
 
+    // DDR3 copy of index 0 (ddr_rom.sv): Indoor Soccer sprite rows and ADPCM, by index-0 byte address
+    output logic        ddr_row_req,    // pulse; ddr_row_addr held until ddr_row_rdy
+    output logic [24:0] ddr_row_addr,
+    input  logic        ddr_row_rdy,
+    input  logic [63:0] ddr_row_q,
+    output logic        ddr_byte_en,
+    output logic [24:0] ddr_byte_addr,
+    input  logic  [7:0] ddr_byte_q,
+    input  logic        ddr_byte_rdy,
+
     input  logic [15:0] hs_address,
     input  logic  [7:0] hs_data_in,
     output logic  [7:0] hs_data_out,
@@ -109,7 +121,35 @@ wire cs_grid     = (variant == 8'd16);
 wire tms         = (variant == 8'd18) || (variant == 8'd19);
 logic [15:0] dc_adpcm_a;
 logic [16:0] dc_spr8_a;
-logic  [7:0] dc_spr8_d;
+logic  [7:0] dc_spr8_d;          // crt_flip_fb alt read data (Devil Zone grid since 2026-10-23)
+logic        dc_spr8_req;
+
+// DDR3-2026-10-23: Indoor Soccer gfx2 at index-0 0x40000, ADPCM at 0x60000 (gen_mra; no BRAM behind it)
+assign ddr_row_req   = dc_spr8_req;
+assign ddr_row_addr  = 25'h40000 + {8'd0, dc_spr8_a};
+assign ddr_byte_en   = idsoc;
+// ROMSHARE-2026-10-23: original (ADPCM split over 0x00000 / 0x10000)
+// assign ddr_byte_addr = {8'd0, dc_adpcm_a[15], 1'b0, dc_adpcm_a[14:0]};
+assign ddr_byte_addr = 25'h60000 + {9'd0, dc_adpcm_a};
+
+// Mr. Do's Castle ROM ports + load decodes (ROMSHARE-2026-10-23: moved up from the Castle ROM block, which now
+// shares the Lady Bug-group RAMs: no set loads both windows of a pair, tools/rom_audit.py)
+logic [15:0] dc_main_a;
+logic  [7:0] dc_main_lo_d, dc_main_hi_d;
+logic [13:0] dc_sub_a;
+logic  [7:0] dc_sub_d;
+logic [11:0] dc_tile_a, dc_spr_a;
+logic [31:0] dc_tile_d;
+logic [63:0] dc_spr_d;
+wire win_dc_mhi   = ioctl_addr[24:13] == 12'h014;                // 0x28000-0x29FFF
+wire win_dc_sub   = ioctl_addr[24:14] == 11'h00C;                // 0x30000-0x33FFF
+wire win_dc_tile  = ioctl_addr[24:14] == 11'h00D;                // 0x34000-0x37FFF
+wire load_dc_mlo  = ioctl_wr0 && ioctl_addr[24:15] == 10'h004;   // 0x20000-0x27FFF
+wire load_dc_mhi  = ioctl_wr0 && win_dc_mhi;
+wire load_dc_sub  = ioctl_wr0 && win_dc_sub;
+wire load_dc_tile = ioctl_wr0 && win_dc_tile;
+wire load_dc_prom = ioctl_wr0 && ioctl_addr[24:8]  == 17'h003C0; // 0x3C000-0x3C0FF
+wire load_dc_spr  = ioctl_wr0 && ioctl_addr[24:15] == 10'h008;   // 0x40000-0x47FFF
 
 logic [14:0] rom_cpu_a, lb_cpu_a, md_cpu_a, zh_cpu_a, cm_cpu_a, cs_cpu_a, tm_cpu_a;
 logic [11:0] tm_chr_a;
@@ -121,43 +161,86 @@ logic  [7:0] dec_a;
 logic  [7:0] dec_h, dec_l;
 logic [11:0] rom_char_a, rom_sprite_a;
 
-assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : zhour ? zh_cpu_a : cheeky ? cm_cpu_a :
+// ROMSHARE-2026-10-23: original (Indoor Soccer ADPCM read through rom_cpu)
+// assign rom_cpu_a    = idsoc ? dc_adpcm_a[14:0] : mrdo ? md_cpu_a : zhour ? zh_cpu_a : cheeky ? cm_cpu_a :
+//                       cosmic ? cs_cpu_a : tms ? tm_cpu_a : lb_cpu_a;
+assign rom_cpu_a    = mrdo ? md_cpu_a : zhour ? zh_cpu_a : cheeky ? cm_cpu_a :
                       cosmic ? cs_cpu_a : tms ? tm_cpu_a : lb_cpu_a;
 assign rom_char_a   = mrdo ? md_fg_a  : zhour ? zh_chr_a : cheeky ? cm_chr_a : cosmic ? cs_cmap_a : tms ? tm_chr_a : lb_char_a;
 assign rom_sprite_a = mrdo ? md_bg_a  : cheeky ? cm_spr_a : cosmic ? cs_spr_a : lb_sprite_a;
 logic [15:0] rom_char_d, rom_sprite_d;
 
+// ROMSHARE-2026-10-23: original Lady Bug-group CPU / char / sprite RAMs below; each now also holds a Castle ROM
+// dpram_dc #(.widthad_a(15)) rom_cpu
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_cpu),
+//     .clock_b(clk), .address_b(rom_cpu_a), .q_b(rom_cpu_d)
+// );
+//
+// dpram_dc #(.widthad_a(12)) rom_char_l
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_chl),
+//     .clock_b(clk), .address_b(rom_char_a), .q_b(rom_char_d[7:0])
+// );
+//
+// // Cosmic boards: user2 with two read ports (port A is free once the download is over)
+// dpram_dc #(.widthad_a(12)) rom_char_h
+// (
+//     .clock_a(clk), .address_a(reset ? ioctl_addr[11:0] : cs_u2b_a), .data_a(ioctl_dout), .wren_a(load_chh), .q_a(cs_u2b_d),
+//     .clock_b(clk), .address_b(cosmic ? cs_u2_a : rom_char_a), .q_b(rom_char_d[15:8])
+// );
+// assign cs_u2_d = rom_char_d[15:8];
+//
+// dpram_dc #(.widthad_a(12)) rom_sprite_l
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_spl),
+//     .clock_b(clk), .address_b(rom_sprite_a), .q_b(rom_sprite_d[7:0])
+// );
+//
+// dpram_dc #(.widthad_a(12)) rom_sprite_h
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_sph),
+//     .clock_b(clk), .address_b(rom_sprite_a), .q_b(rom_sprite_d[15:8])
+// );
+
+// ROMSHARE-2026-10-23: rom_cpu = Lady Bug-group CPU ROM (0x00000) or Castle main 0000-7FFF (0x20000)
 dpram_dc #(.widthad_a(15)) rom_cpu
 (
-    .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_cpu),
-    .clock_b(clk), .address_b(rom_cpu_a), .q_b(rom_cpu_d)
+    .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_cpu || load_dc_mlo),
+    .clock_b(clk), .address_b(dcastle ? dc_main_a[14:0] : rom_cpu_a), .q_b(rom_cpu_d)
 );
+assign dc_main_lo_d = rom_cpu_d;
+
+// ROMSHARE-2026-10-23: char / sprite ROMs = Castle tile ROM lanes 0-3 (0x34000-0x37FFF, byte k of each 4)
+wire [11:0] chsp_wa = win_dc_tile ? ioctl_addr[13:2] : ioctl_addr[11:0];
 
 dpram_dc #(.widthad_a(12)) rom_char_l
 (
-    .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_chl),
-    .clock_b(clk), .address_b(rom_char_a), .q_b(rom_char_d[7:0])
+    .clock_a(clk), .address_a(chsp_wa), .data_a(ioctl_dout), .wren_a(load_chl || (load_dc_tile && ioctl_addr[1:0] == 2'd0)),
+    .clock_b(clk), .address_b(dcastle ? dc_tile_a : rom_char_a), .q_b(rom_char_d[7:0])
 );
 
 // Cosmic boards: user2 with two read ports (port A is free once the download is over)
 dpram_dc #(.widthad_a(12)) rom_char_h
 (
-    .clock_a(clk), .address_a(reset ? ioctl_addr[11:0] : cs_u2b_a), .data_a(ioctl_dout), .wren_a(load_chh), .q_a(cs_u2b_d),
-    .clock_b(clk), .address_b(cosmic ? cs_u2_a : rom_char_a), .q_b(rom_char_d[15:8])
+    .clock_a(clk), .address_a(reset ? chsp_wa : cs_u2b_a), .data_a(ioctl_dout),
+    .wren_a(load_chh || (load_dc_tile && ioctl_addr[1:0] == 2'd1)), .q_a(cs_u2b_d),
+    .clock_b(clk), .address_b(cosmic ? cs_u2_a : dcastle ? dc_tile_a : rom_char_a), .q_b(rom_char_d[15:8])
 );
 assign cs_u2_d = rom_char_d[15:8];
 
 dpram_dc #(.widthad_a(12)) rom_sprite_l
 (
-    .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_spl),
-    .clock_b(clk), .address_b(rom_sprite_a), .q_b(rom_sprite_d[7:0])
+    .clock_a(clk), .address_a(chsp_wa), .data_a(ioctl_dout), .wren_a(load_spl || (load_dc_tile && ioctl_addr[1:0] == 2'd2)),
+    .clock_b(clk), .address_b(dcastle ? dc_tile_a : rom_sprite_a), .q_b(rom_sprite_d[7:0])
 );
 
 dpram_dc #(.widthad_a(12)) rom_sprite_h
 (
-    .clock_a(clk), .address_a(ioctl_addr[11:0]), .data_a(ioctl_dout), .wren_a(load_sph),
-    .clock_b(clk), .address_b(rom_sprite_a), .q_b(rom_sprite_d[15:8])
+    .clock_a(clk), .address_a(chsp_wa), .data_a(ioctl_dout), .wren_a(load_sph || (load_dc_tile && ioctl_addr[1:0] == 2'd3)),
+    .clock_b(clk), .address_b(dcastle ? dc_tile_a : rom_sprite_a), .q_b(rom_sprite_d[15:8])
 );
+assign dc_tile_d = {rom_sprite_d[15:8], rom_sprite_d[7:0], rom_char_d[15:8], rom_char_d[7:0]};
 
 // Dorodon opcode PROMs, nibble-wide: decoded byte = {bp4[x], bp3[x]}
 dpram_dc #(.widthad_a(8)) rom_dec_h
@@ -173,18 +256,34 @@ dpram_dc #(.widthad_a(8)) rom_dec_l
 );
 
 logic [14:0] rom_sub_a, lb_sub_a;
-assign rom_sub_a = idsoc ? dc_adpcm_a[14:0] : lb_sub_a;
+// ROMSHARE-2026-10-23: original (Indoor Soccer ADPCM read through rom_sub)
+// assign rom_sub_a = idsoc ? dc_adpcm_a[14:0] : lb_sub_a;
+assign rom_sub_a = lb_sub_a;
 logic  [7:0] rom_sub_d;
 logic [11:0] grid_rom_a;
 logic  [7:0] grid_rom_d, grid_ram_a, grid_ram_d;
 logic        grid_wr;
 logic  [7:0] grid_a, grid_d;
 
+// ROMSHARE-2026-10-23: original below
+// dpram_dc #(.widthad_a(15)) rom_sub
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_sub),
+//     .clock_b(clk), .address_b(rom_sub_a), .q_b(rom_sub_d)
+// );
+
+// ROMSHARE-2026-10-23: rom_sub = 8203 sub CPU ROM (0x10000), or Castle sub ROM at 0000-3FFF (0x30000) + Castle
+// main 8000-9FFF at 4000-5FFF (0x28000). The two Castle CPUs fetch at once: port A (free after the download)
+// reads the main CPU's upper ROM.
+wire [14:0] sub_wa = win_dc_sub ? {1'b0, ioctl_addr[13:0]} : win_dc_mhi ? {2'b10, ioctl_addr[12:0]} : ioctl_addr[14:0];
+
 dpram_dc #(.widthad_a(15)) rom_sub
 (
-    .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_sub),
-    .clock_b(clk), .address_b(rom_sub_a), .q_b(rom_sub_d)
+    .clock_a(clk), .address_a(reset ? sub_wa : {2'b10, dc_main_a[12:0]}), .data_a(ioctl_dout),
+    .wren_a(load_sub || load_dc_sub || load_dc_mhi), .q_a(dc_main_hi_d),
+    .clock_b(clk), .address_b(dcastle ? {1'b0, dc_sub_a} : rom_sub_a), .q_b(rom_sub_d)
 );
+assign dc_sub_d = rom_sub_d;
 
 // Space Raider grid RAM (HD6148P @ D6): written by the sub CPU, read by the overlay
 dpram_dc #(.widthad_a(8)) ram_grid
@@ -201,63 +300,89 @@ logic  [1:0] grid_lane = 2'd0;
 always_ff @(posedge clk) grid_lane <= grid_rom_a[1:0];
 assign grid_rom_d = md_spr_d[grid_lane*8 +: 8];
 wire         load_mdspr = ioctl_wr0 && ioctl_addr[24:13] == 12'h00C;   // 0x18000-0x19FFF
+// ROMSHARE-2026-10-23: original mdspr lanes and Castle ROM RAMs below (Castle ROMs now share the Lady Bug-group
+// RAMs above; Mr. Do! sprite / Space Raider grid ROM = low half of dcspr lanes 0-3)
+// genvar ln;
+// generate
+//     for (ln = 0; ln < 4; ln++) begin : mdspr
+//         dpram_dc #(.widthad_a(11)) rom
+//         (
+//             .clock_a(clk), .address_a(ioctl_addr[12:2]), .data_a(ioctl_dout), .wren_a(load_mdspr && ioctl_addr[1:0] == ln),
+//             .clock_b(clk), .address_b(board_8203 ? {1'b0, grid_rom_a[11:2]} : md_spr_a), .q_b(md_spr_d[ln*8 +: 8])
+//         );
+//     end
+// endgenerate
+//
+// // Mr. Do's Castle ROMs
+// logic [15:0] dc_main_a;
+// logic  [7:0] dc_main_lo_d, dc_main_hi_d;
+// logic [13:0] dc_sub_a;
+// logic  [7:0] dc_sub_d;
+// logic [11:0] dc_tile_a, dc_spr_a;
+// logic [31:0] dc_tile_d;
+// logic [63:0] dc_spr_d;
+// wire load_dc_mlo  = ioctl_wr0 && ioctl_addr[24:15] == 10'h004;   // 0x20000-0x27FFF
+// wire load_dc_mhi  = ioctl_wr0 && ioctl_addr[24:13] == 12'h014;   // 0x28000-0x29FFF
+// wire load_dc_sub  = ioctl_wr0 && ioctl_addr[24:14] == 11'h00C;   // 0x30000-0x33FFF
+// wire load_dc_tile = ioctl_wr0 && ioctl_addr[24:14] == 11'h00D;   // 0x34000-0x37FFF
+// wire load_dc_prom = ioctl_wr0 && ioctl_addr[24:8]  == 17'h003C0; // 0x3C000-0x3C0FF
+// wire load_dc_spr  = ioctl_wr0 && ioctl_addr[24:15] == 10'h008;   // 0x40000-0x47FFF
+//
+// dpram_dc #(.widthad_a(15)) dc_main_lo
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_dc_mlo),
+//     .clock_b(clk), .address_b(dc_main_a[14:0]), .q_b(dc_main_lo_d)
+// );
+// dpram_dc #(.widthad_a(13)) dc_main_hi
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[12:0]), .data_a(ioctl_dout), .wren_a(load_dc_mhi),
+//     .clock_b(clk), .address_b(dc_main_a[12:0]), .q_b(dc_main_hi_d)
+// );
+// dpram_dc #(.widthad_a(14)) dc_sub
+// (
+//     .clock_a(clk), .address_a(ioctl_addr[13:0]), .data_a(ioctl_dout), .wren_a(load_dc_sub),
+//     .clock_b(clk), .address_b(dc_sub_a), .q_b(dc_sub_d)
+// );
+// generate
+//     for (ln = 0; ln < 4; ln++) begin : dctile
+//         dpram_dc #(.widthad_a(12)) rom
+//         (
+//             .clock_a(clk), .address_a(ioctl_addr[13:2]), .data_a(ioctl_dout), .wren_a(load_dc_tile && ioctl_addr[1:0] == ln),
+//             .clock_b(clk), .address_b(dc_tile_a), .q_b(dc_tile_d[ln*8 +: 8])
+//         );
+//     end
+//     for (ln = 0; ln < 8; ln++) begin : dcspr
+//         dpram_dc #(.widthad_a(12)) rom
+//         (
+//             .clock_a(clk), .address_a(ioctl_addr[14:3]), .data_a(ioctl_dout), .wren_a(load_dc_spr && ioctl_addr[2:0] == ln),
+//             .clock_b(clk), .address_b(zhour ? zh_spr_a : dc_spr_a), .q_b(dc_spr_d[ln*8 +: 8])
+//         );
+//     end
+// endgenerate
+
 genvar ln;
-generate
-    for (ln = 0; ln < 4; ln++) begin : mdspr
-        dpram_dc #(.widthad_a(11)) rom
-        (
-            .clock_a(clk), .address_a(ioctl_addr[12:2]), .data_a(ioctl_dout), .wren_a(load_mdspr && ioctl_addr[1:0] == ln),
-            .clock_b(clk), .address_b(board_8203 ? {1'b0, grid_rom_a[11:2]} : md_spr_a), .q_b(md_spr_d[ln*8 +: 8])
-        );
-    end
-endgenerate
 
-// Mr. Do's Castle ROMs
-logic [15:0] dc_main_a;
-logic  [7:0] dc_main_lo_d, dc_main_hi_d;
-logic [13:0] dc_sub_a;
-logic  [7:0] dc_sub_d;
-logic [11:0] dc_tile_a, dc_spr_a;
-logic [31:0] dc_tile_d;
-logic [63:0] dc_spr_d;
-wire load_dc_mlo  = ioctl_wr0 && ioctl_addr[24:15] == 10'h004;   // 0x20000-0x27FFF
-wire load_dc_mhi  = ioctl_wr0 && ioctl_addr[24:13] == 12'h014;   // 0x28000-0x29FFF
-wire load_dc_sub  = ioctl_wr0 && ioctl_addr[24:14] == 11'h00C;   // 0x30000-0x33FFF
-wire load_dc_tile = ioctl_wr0 && ioctl_addr[24:14] == 11'h00D;   // 0x34000-0x37FFF
-wire load_dc_prom = ioctl_wr0 && ioctl_addr[24:8]  == 17'h003C0; // 0x3C000-0x3C0FF
-wire load_dc_spr  = ioctl_wr0 && ioctl_addr[24:15] == 10'h008;   // 0x40000-0x47FFF
-
-dpram_dc #(.widthad_a(15)) dc_main_lo
-(
-    .clock_a(clk), .address_a(ioctl_addr[14:0]), .data_a(ioctl_dout), .wren_a(load_dc_mlo),
-    .clock_b(clk), .address_b(dc_main_a[14:0]), .q_b(dc_main_lo_d)
-);
-dpram_dc #(.widthad_a(13)) dc_main_hi
-(
-    .clock_a(clk), .address_a(ioctl_addr[12:0]), .data_a(ioctl_dout), .wren_a(load_dc_mhi),
-    .clock_b(clk), .address_b(dc_main_a[12:0]), .q_b(dc_main_hi_d)
-);
-dpram_dc #(.widthad_a(14)) dc_sub
-(
-    .clock_a(clk), .address_a(ioctl_addr[13:0]), .data_a(ioctl_dout), .wren_a(load_dc_sub),
-    .clock_b(clk), .address_b(dc_sub_a), .q_b(dc_sub_d)
-);
+// ROMSHARE-2026-10-23: dcspr lanes 0-3 also hold the Mr. Do! sprite / Space Raider grid ROM (0x18000-0x19FFF, 2K
+// per lane at 000-7FF); Castle gfx2 (0x40000-0x47FFF) as before; Zero Hour / Red Clash gfx2 now at 0x1C000-0x1DFFF
+// -> lane offset 800-BFF (gen_mra: its image must end below the Castle windows). No set loads two (rom_audit.py).
+wire load_zhspr = ioctl_wr0 && ioctl_addr[24:13] == 12'h00E;   // 0x1C000-0x1DFFF
 generate
-    for (ln = 0; ln < 4; ln++) begin : dctile
-        dpram_dc #(.widthad_a(12)) rom
-        (
-            .clock_a(clk), .address_a(ioctl_addr[13:2]), .data_a(ioctl_dout), .wren_a(load_dc_tile && ioctl_addr[1:0] == ln),
-            .clock_b(clk), .address_b(dc_tile_a), .q_b(dc_tile_d[ln*8 +: 8])
-        );
-    end
     for (ln = 0; ln < 8; ln++) begin : dcspr
         dpram_dc #(.widthad_a(12)) rom
         (
-            .clock_a(clk), .address_a(ioctl_addr[14:3]), .data_a(ioctl_dout), .wren_a(load_dc_spr && ioctl_addr[2:0] == ln),
-            .clock_b(clk), .address_b(zhour ? zh_spr_a : dc_spr_a), .q_b(dc_spr_d[ln*8 +: 8])
+            .clock_a(clk),
+            .address_a(load_mdspr ? {1'b0, ioctl_addr[12:2]} : load_zhspr ? {2'b10, ioctl_addr[12:3]} : ioctl_addr[14:3]),
+            .data_a(ioctl_dout),
+            .wren_a(((load_dc_spr || load_zhspr) && ioctl_addr[2:0] == ln) ||
+                    (ln < 4 && load_mdspr && {30'd0, ioctl_addr[1:0]} == ln)),
+            .clock_b(clk),
+            .address_b(board_8203 ? {2'b00, grid_rom_a[11:2]} : mrdo ? {1'b0, md_spr_a} :
+                       zhour ? {1'b1, zh_spr_a[10:0]} : dc_spr_a),
+            .q_b(dc_spr_d[ln*8 +: 8])
         );
     end
 endgenerate
+assign md_spr_d = dc_spr_d[31:0];
 
 // Colour PROMs live in the video unit
 wire prom_k1_wr = load_prom && ioctl_addr[6:5] == 2'd0;
@@ -455,11 +580,23 @@ crt_flip_fb flip_fb
     .dout    (fb_code),
     .out_hbl (fb_hbl),
     .out_vbl (fb_vbl),
-    .alt_en  (idsoc || cs_grid),
-    .alt_wa  (cs_grid_we ? {4'd0, cs_grid_wa} : ioctl_addr[16:0]),
-    .alt_wd  (cs_grid_we ? cs_grid_wd : ioctl_dout),
-    .alt_we  ((ioctl_wr0 && ioctl_addr[24:17] == 8'h02) || cs_grid_we),       // 0x40000-0x5FFFF / Devil Zone grid
-    .alt_ra  (idsoc ? dc_spr8_a : {4'd0, cs_grid_ra}),
+    // DDR3-2026-10-23: Indoor Soccer's gfx2 left this RAM for DDR3; only the Devil Zone grid uses the alt port now.
+    // Previous lines (incl. the FIX-REVERT block) kept below.
+    // .alt_en  (idsoc || cs_grid),
+    // FIX-REVERT-2026-10-23: originals below. The Devil Zone grid writer runs on every variant (cs_kind = variant - 13
+    // wraps to 3 = devzone, cosmic timing has no reset), so it wrote 6144 bytes into Lady Bug's flip buffer 0 per frame.
+    // .alt_wa  (cs_grid_we ? {4'd0, cs_grid_wa} : ioctl_addr[16:0]),
+    // .alt_wd  (cs_grid_we ? cs_grid_wd : ioctl_dout),
+    // .alt_we  ((ioctl_wr0 && ioctl_addr[24:17] == 8'h02) || cs_grid_we),       // 0x40000-0x5FFFF / Devil Zone grid
+    // .alt_wa  ((cs_grid && cs_grid_we) ? {4'd0, cs_grid_wa} : ioctl_addr[16:0]),
+    // .alt_wd  ((cs_grid && cs_grid_we) ? cs_grid_wd : ioctl_dout),
+    // .alt_we  ((ioctl_wr0 && ioctl_addr[24:17] == 8'h02) || (cs_grid && cs_grid_we)),   // 0x40000-0x5FFFF / Devil Zone grid (variant 16 only)
+    // .alt_ra  (idsoc ? dc_spr8_a : {4'd0, cs_grid_ra}),
+    .alt_en  (cs_grid),
+    .alt_wa  ({4'd0, cs_grid_wa}),
+    .alt_wd  (cs_grid_wd),
+    .alt_we  (cs_grid && cs_grid_we),                       // Devil Zone grid (variant 16 only)
+    .alt_ra  ({4'd0, cs_grid_ra}),
     .alt_q   (dc_spr8_d)
 );
 
@@ -593,10 +730,18 @@ docastle_board docastle_b
     .rom_tile_d   (dc_tile_d),
     .rom_spr_a    (dc_spr_a),
     .rom_spr_d    (dc_spr_d),
+    // DDR3-2026-10-23: originals
+    // .rom_spr8_a   (dc_spr8_a),
+    // .rom_spr8_d   (dc_spr8_d),
+    // .rom_adpcm_a  (dc_adpcm_a),
+    // .rom_adpcm_d  (dc_adpcm_a[15] ? rom_sub_d : rom_cpu_d),
     .rom_spr8_a   (dc_spr8_a),
-    .rom_spr8_d   (dc_spr8_d),
+    .rom_spr8_req (dc_spr8_req),
+    .rom_spr8_rdy (ddr_row_rdy),
+    .rom_spr8_q   (ddr_row_q),
     .rom_adpcm_a  (dc_adpcm_a),
-    .rom_adpcm_d  (dc_adpcm_a[15] ? rom_sub_d : rom_cpu_d),
+    .rom_adpcm_d  (ddr_byte_q),
+    .rom_adpcm_rdy(ddr_byte_rdy),
     .prom_wr      (load_dc_prom),
     .prom_a       (ioctl_addr[7:0]),
     .prom_d       (ioctl_dout),

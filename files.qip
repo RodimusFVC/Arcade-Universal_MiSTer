@@ -3,6 +3,7 @@ set_global_assignment -name VHDL_INPUT_VERSION VHDL_2008
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/chip_pool_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE Arcade-Universal.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/universal_board.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ddr_rom.sv
 
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/ladybug/ladybug_machine.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/ladybug/ladybug_clk.sv

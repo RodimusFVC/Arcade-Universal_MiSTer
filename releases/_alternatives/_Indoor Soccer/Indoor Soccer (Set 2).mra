@@ -41,11 +41,7 @@
 
     <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
     <rom index="0" md5="none" zip="idsoccera.zip|idsoccer.zip">
-        <part crc="3bb65dc7" name="indoor.ic1"/>
-        <part repeat="0xC000">00</part>
-        <part crc="27bebba3" name="indoor.ic3"/>
-        <part crc="dd5ffaa2" name="indoor.ic4"/>
-        <part repeat="0x8000">00</part>
+        <part repeat="0x20000">00</part>
         <part crc="ed086bd1" name="indoor.e10"/>
         <part crc="54e5c6fc" name="indoor.f10"/>
         <part repeat="0x2000">00</part>
@@ -60,6 +56,10 @@
         <part crc="fa2b1c77" name="indoor.n3"/>
         <part crc="2663405c" name="indoor.l3"/>
         <part crc="a2a69223" name="indoor.k3"/>
+        <part crc="3bb65dc7" name="indoor.ic1"/>
+        <part repeat="0x4000">00</part>
+        <part crc="27bebba3" name="indoor.ic3"/>
+        <part crc="dd5ffaa2" name="indoor.ic4"/>
     </rom>
 
     <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->

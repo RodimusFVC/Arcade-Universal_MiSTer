@@ -25,9 +25,9 @@ module crt_flip_fb
     output logic       out_hbl,
     output logic       out_vbl,
 
-    // alternate use of the 128K RAM while a board without this frame buffer runs (Indoor Soccer sprite ROM).
-    // The ROM is written during the download, before the MRA's index 1 sets the variant (alt_en): alt_we
-    // always wins the write port, and frame buffer writes are off while in reset.
+    // alternate use of the RAM while a board without this frame buffer runs (Devil Zone grid frame, 8K).
+    // alt_we always wins the write port, and frame buffer writes are off while in reset.
+    // (Until 2026-10-23 the RAM was 128K and also held the Indoor Soccer sprite ROM; that now lives in DDR3.)
     input  logic        alt_en,
     input  logic [16:0] alt_wa,
     input  logic  [7:0] alt_wd,
@@ -75,16 +75,40 @@ assign alt_q = q;
 logic ce_d = 1'b0;
 always_ff @(posedge clk) ce_d <= ce_pix;
 
-dpram_dc #(.widthad_a(17)) fb
+// FB96-REVERT-2026-10-23: original 128K RAM below (sized for the Indoor Soccer sprite ROM, now in DDR3)
+// dpram_dc #(.widthad_a(17)) fb
+// (
+//     .clock_a(clk), .address_a((alt_en || alt_we) ? alt_wa : wa), .data_a((alt_en || alt_we) ? alt_wd : d_q),
+//     .wren_a(alt_we || (!alt_en && !reset && ce_d && vis_q)),
+//     .clock_b(clk), .address_b(alt_en ? alt_ra : ra), .q_b(q)
+// );
+
+// FB96-2026-10-23: 96K as 64K + 32K (both frames end at 92159 = 0x167FF), same 1-clock read latency
+wire [16:0] fa_w = (alt_en || alt_we) ? alt_wa : wa;
+wire  [7:0] fd_w = (alt_en || alt_we) ? alt_wd : d_q;
+wire        fwe  = alt_we || (!alt_en && !reset && ce_d && vis_q);
+wire [16:0] fa_r = alt_en ? alt_ra : ra;
+logic [7:0] q_lo, q_hi;
+logic       r_hi = 1'b0;
+always_ff @(posedge clk) r_hi <= fa_r[16];
+assign q = r_hi ? q_hi : q_lo;
+
+dpram_dc #(.widthad_a(16)) fb_lo
 (
-    .clock_a(clk), .address_a((alt_en || alt_we) ? alt_wa : wa), .data_a((alt_en || alt_we) ? alt_wd : d_q),
-    .wren_a(alt_we || (!alt_en && !reset && ce_d && vis_q)),
-    .clock_b(clk), .address_b(alt_en ? alt_ra : ra), .q_b(q)
+    .clock_a(clk), .address_a(fa_w[15:0]), .data_a(fd_w), .wren_a(fwe && !fa_w[16]),
+    .clock_b(clk), .address_b(fa_r[15:0]), .q_b(q_lo)
+);
+
+dpram_dc #(.widthad_a(15)) fb_hi
+(
+    .clock_a(clk), .address_a(fa_w[14:0]), .data_a(fd_w), .wren_a(fwe && fa_w[16]),
+    .clock_b(clk), .address_b(fa_r[14:0]), .q_b(q_hi)
 );
 
 always_ff @(posedge clk) begin
     if (ce_pix) begin
         dout    <= (en && vis_q) ? q : d_q;
+
         out_hbl <= hbl_q;
         out_vbl <= vbl_q;
     end
