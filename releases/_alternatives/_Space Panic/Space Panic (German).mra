@@ -64,6 +64,18 @@
         </part>
     </rom>
 
+    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <rom index="3" md5="none">
+        <part>
+            00 84 FB A6 00 FF 00 02 00 02 00 01 11 11 00 00
+            00 00 40 C1 00 05 00 00
+            00 00 5C 00 00 0C 09 15
+            00 00 40 04 00 02 00 00
+        </part>
+    </rom>
+    <rom index="4"></rom>
+    <nvram index="4" size="19"></nvram>
+
     <remark>Space Panic (German) (Universal (ADP Automaten License))</remark>
     <mratimestamp>20261011000000</mratimestamp>
 </misterromdescription>

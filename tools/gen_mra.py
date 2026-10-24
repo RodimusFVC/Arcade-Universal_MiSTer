@@ -20,11 +20,29 @@ MAME_VERSION = "0289"
 RBF = "Universal"
 HISCORE_DAT = Path("/CybertronMD/Mame/plugins/hiscore/hiscore.dat")   # current file (user, 2026-09-27)
 # hiscore.v header after START_WAIT: CHECK_WAIT 00FF, CHECK_HOLD 2, WRITE_HOLD 2, WRITE_REPEATCOUNT 1,
-# WRITE_REPEATWAIT 1111, PAUSEPAD 0, CHANGEMASK 0
-HISCORE_HEADER_TAIL = "00 FF 00 02 00 02 00 01 11 11 00 00"
-# START_WAIT = last boot-time write to the hiscore.dat ranges, measured in MAME (write taps, 30 s, bytes rewritten
-# every frame excluded), + 2 frames. Keyed by a reference set per distinct hiscore.dat layout.
-HISCORE_INIT_FRAME = {}   # none measured yet: hiscores are added in one final pass
+# WRITE_REPEATWAIT 1111, PAUSEPAD per board (HISCORE_PAUSEPAD), CHANGEMASK 0
+HISCORE_HEADER_TAIL = "00 FF 00 02 00 02 00 01 11 11 {pad:02X} 00"
+# START_WAIT = last boot-time change to the hiscore.dat ranges, measured on THIS core in sim
+# (verilator/hsmeasure/run.py; MAME boots at a different pace), + 2 frames. Keyed by a reference set per layout.
+# measured on the core 2026-10-23 (hsmeasure, 600 frames, no inputs). Late changes ignored as live / attract:
+# redclash 41FD-425D digits (280+), cosmicg 2FAD (170+), mrdo E017 / dowild 2020 transient rewrites (517 / 487),
+# nomnlnd attract drawing inside its 1728-byte video RAM range. ladybug: 6073 block cycles f14-99, table at 186.
+# cheekyms: 3009-3014 walking-bit RAM test to f33; 3014 = 36 only at f34-35 (live byte after), so the sentinels
+# gate the restore into that window.
+HISCORE_INIT_FRAME = {"cavenger": 4, "cheekyms": 32, "cosmica": 0, "cosmicg": 6, "devzone": 6, "docastle": 65,
+                      "dorodon": 10, "dorunrun": 3, "dorunrunc": 3, "dowild": 3, "ladybug": 186, "magspot": 6,
+                      "magspot2": 6, "mrdo": 3, "mrdobl": 3, "mrsdyna": 4, "nomnlnd": 7, "panic": 24, "redclash": 9,
+                      "redclasht": 9, "snapjack": 6, "spiero": 3, "sraider": 4, "zerohour": 0}
+# CLK_SYS clocks per frame per board, measured in the board sim (sim_board FRAMECLK=1, 2026-10-23); START_WAIT =
+# (init frame + 2) x these, not a single frame rate: the Cosmic boards' frames are 2.5 % longer than Lady Bug's.
+HISCORE_FRAME_CLKS = {**{m: 326976 for m in ("ladybug", "dorodon", "sraider", "mrsdyna", "mrdo", "mrdobl", "zerohour",
+                                              "redclash")},
+                      **{m: 329472 for m in ("docastle", "dorunrun", "idsoccer")},
+                      **{m: 335199 for m in ("cheekyms", "panic", "cosmica", "magspot", "devzone", "nomnlnd")},
+                      **{m: 328224 for m in ("cosmicg", "getaway")}}
+# header byte 14 ACCESS_PAUSEPAD (clocks between pausing the CPU and the first RAM access): 0 on the Z80 boards (their
+# clock enables stop at once); the TMS boards wait for HOLDA + an idle byte sequencer (tms_board.sv hs_own)
+HISCORE_PAUSEPAD = {"cosmicg": 255, "getaway": 255}   # sim HOLD_PROBE 2026-10-23: worst 73 clocks to hs_own (600 pauses)
 CLK_HZ, FRAME_HZ = 19_656_000, 4_914_000 / (312 * 262)
 
 # region -> (base in ioctl index 0, size taken)
@@ -519,6 +537,12 @@ def parse_hiscores(path):
 
 
 HISCORES = parse_hiscores(HISCORE_DAT) if HISCORE_DAT.exists() else {}
+# sets with no hiscore.dat entry that use the parent's table (user rule: same RAM structure -> same hiscores).
+# panic4 / panicbl: boot writes to panic's ranges identical, final bytes = panic's sentinels (sim trace 2026-10-23).
+HISCORE_INHERIT = {"panic4": "panic", "panicbl": "panic"}
+for _k, _p in HISCORE_INHERIT.items():
+    if _k not in HISCORES and _p in HISCORES:
+        HISCORES[_k] = HISCORES[_p]
 
 
 def hiscore_xml(g):
@@ -540,8 +564,10 @@ def hiscore_xml(g):
     if ref is None:
         print(f'{g["name"]}: no measured hiscore init frame yet, hiscore omitted')
         return ""
-    wait = round((HISCORE_INIT_FRAME[ref] + 2) / FRAME_HZ * CLK_HZ)
-    header = " ".join(f"{b:02X}" for b in wait.to_bytes(4, "big")) + " " + HISCORE_HEADER_TAIL
+    # wait = round((HISCORE_INIT_FRAME[ref] + 2) / FRAME_HZ * CLK_HZ)   # HSCORE-2026-10-23: original (Lady Bug rate)
+    wait = (HISCORE_INIT_FRAME[ref] + 2) * HISCORE_FRAME_CLKS[g["machine"]]
+    header = (" ".join(f"{b:02X}" for b in wait.to_bytes(4, "big")) + " "
+              + HISCORE_HEADER_TAIL.format(pad=HISCORE_PAUSEPAD.get(g["machine"], 0)))
     return f"""
     <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
     <rom index="3" md5="none">

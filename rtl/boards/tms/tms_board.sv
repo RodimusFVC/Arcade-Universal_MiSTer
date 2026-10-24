@@ -55,7 +55,13 @@ module tms_board
 
     // RAMPOOL-2026-10-23: the three bitmap planes live in board RAM pool blocks 0-2 (universal_board.sv)
     output ram_pool_pkg::pram_i_t [2:0] pr_i,
-    input  ram_pool_pkg::pram_o_t [2:0] pr_o
+    input  ram_pool_pkg::pram_o_t [2:0] pr_o,
+
+    // HSCORE-2026-10-23: hiscore access to the cosmicg RAM (2000-3FFF = plane 0)
+    input  logic        [15:0] hs_address,
+    output logic         [7:0] hs_data_out,
+    input  logic         [7:0] hs_data_in,
+    input  logic               hs_write
 );
 
 // ------------------------------------------------------------------ clocks
@@ -86,6 +92,7 @@ end
 logic [15:0] cpu_a, cpu_do;
 logic        cpu_rd, cpu_wr, cpu_as, cpu_cruin, cpu_cruout, cpu_cruclk, cpu_int_ack;
 logic        cpu_ready = 1'b1;
+logic        cpu_holda;                                   // HSCORE-2026-10-23
 logic        int_req;
 logic  [7:0] bhi, blo;
 logic        blit_busy;
@@ -113,7 +120,8 @@ tms9900 cpu                                                         // cycle_clk
     .cruout         (cpu_cruout),
     .cruclk         (cpu_cruclk),
     .hold           (pause | blit_busy),
-    .holda          (),
+    // .holda          (),   // HSCORE-2026-10-23: original
+    .holda          (cpu_holda),
     .waits          (8'd0),
     .scratch_en     (1'b0),
     .stuck          (),
@@ -130,6 +138,12 @@ wire  [15:0] ba  = {cpu_a[15:1], bph};
 logic [15:0] ba_q;
 logic  [7:0] byte_q;
 wire         b_wr = cpu_wr && (bs == 2'd1 || bs == 2'd2);
+
+// HSCORE-2026-10-23: the hiscore system borrows plane 0's CPU port only once the CPU has acknowledged HOLD and the
+// byte sequencer is idle (a word in flight is never cut); the MRA's ACCESS_PAUSEPAD covers the time to get there.
+logic hs_own = 1'b0;
+always_ff @(posedge clk) hs_own <= pause && !getaway && cpu_holda && bs == 2'd0;
+assign hs_data_out = pr_o[0].a_q;
 wire  [7:0]  b_do = bph ? cpu_do[7:0] : cpu_do[15:8];
 
 always_ff @(posedge clk) begin
@@ -352,9 +366,14 @@ generate
         //     .q_a(pl_qa[p]),
         //     .clock_b(clk), .address_b(pl_ab), .q_b(pl_qb[p])
         // );
-        assign pr_i[p].a_addr = {2'd0, pl_aa};
-        assign pr_i[p].a_d    = getaway ? new_p : b_do;
-        assign pr_i[p].a_we   = getaway ? (bl_wr && b_main) : (p == 0 && cg_vram && b_wr);
+        // HSCORE-2026-10-23: originals below; plane 0 port A is the hiscore system's while hs_own
+        // assign pr_i[p].a_addr = {2'd0, pl_aa};
+        // assign pr_i[p].a_d    = getaway ? new_p : b_do;
+        // assign pr_i[p].a_we   = getaway ? (bl_wr && b_main) : (p == 0 && cg_vram && b_wr);
+        assign pr_i[p].a_addr = {2'd0, (p == 0 && hs_own) ? hs_address[12:0] : pl_aa};
+        assign pr_i[p].a_d    = (p == 0 && hs_own) ? hs_data_in : getaway ? new_p : b_do;
+        assign pr_i[p].a_we   = (p == 0 && hs_own) ? hs_write :
+                                getaway ? (bl_wr && b_main) : (p == 0 && cg_vram && b_wr);
         assign pr_i[p].b_addr = {2'd0, pl_ab};
         assign pr_i[p].b_d    = 8'd0;
         assign pr_i[p].b_we   = 1'b0;

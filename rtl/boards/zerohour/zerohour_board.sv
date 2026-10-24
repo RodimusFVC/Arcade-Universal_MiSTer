@@ -63,7 +63,7 @@ module zerohour_board
     input  logic         [6:0] prom_a,
     input  logic         [7:0] prom_d,
 
-    input  logic        [10:0] hs_address,
+    input  logic        [15:0] hs_address,     // HSCORE-2026-10-23: was [10:0]; 4000-43FF = video RAM
     output logic         [7:0] hs_data_out,
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
@@ -119,8 +119,15 @@ logic  [1:0] coin_d = 2'b00;
 
 // the shared T80pa in rtl/universal_board.sv
 assign z80pa_0_i.reset_n = ~reset;
-assign z80pa_0_i.cen_p   = cen_p & ~pause;
-assign z80pa_0_i.cen_n   = cen_n & ~pause;
+// HSCORE-2026-10-23: originals below. The hiscore system borrows the video RAM's CPU port while the CPU is paused;
+// pause_x holds the CPU two clocks longer so its first read after a pause sees its own address again.
+// assign z80pa_0_i.cen_p   = cen_p & ~pause;
+// assign z80pa_0_i.cen_n   = cen_n & ~pause;
+logic [1:0] pause_d = 2'b00;
+always_ff @(posedge clk) pause_d <= {pause_d[0], pause};
+wire pause_x = pause | (|pause_d);
+assign z80pa_0_i.cen_p   = cen_p & ~pause_x;
+assign z80pa_0_i.cen_n   = cen_n & ~pause_x;
 assign z80pa_0_i.wait_n  = 1'b1;
 assign z80pa_0_i.int_n   = int_n;
 assign z80pa_0_i.nmi_n   = ~coin[1];
@@ -183,15 +190,23 @@ logic [7:0] spr_ve;
 //     .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
 // );
 assign pr0_i.a_addr = {4'd0, a[10:0]};      assign pr0_i.a_d = dout;        assign pr0_i.a_we = ram_cs && wr;
-assign pr0_i.b_addr = {4'd0, hs_address};   assign pr0_i.b_d = hs_data_in;  assign pr0_i.b_we = hs_write;
-assign ram_q = pr0_o.a_q;  assign hs_data_out = pr0_o.b_q;
+// HSCORE-2026-10-23: originals below (port B took every hiscore address; now only the work RAM's)
+// assign pr0_i.b_addr = {4'd0, hs_address};   assign pr0_i.b_d = hs_data_in;  assign pr0_i.b_we = hs_write;
+// assign ram_q = pr0_o.a_q;  assign hs_data_out = pr0_o.b_q;
+wire hs_vid = hs_address[15:10] == 6'b010000;                                       // 4000-43FF
+assign pr0_i.b_addr = {4'd0, hs_address[10:0]};  assign pr0_i.b_d = hs_data_in;  assign pr0_i.b_we = hs_write & ~hs_vid;
+assign ram_q = pr0_o.a_q;  assign hs_data_out = hs_vid ? pr1_o.a_q : pr0_o.b_q;
 // RAMPOOL-2026-10-23: original below; pool block 1
 // dpram_dc #(.widthad_a(10)) video_ram
 // (
 //     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(vram_cs && wr), .q_a(vram_q),
 //     .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
 // );
-assign pr1_i.a_addr = {5'd0, a[9:0]};   assign pr1_i.a_d = dout;  assign pr1_i.a_we = vram_cs && wr;
+// HSCORE-2026-10-23: original below; port A is the hiscore system's while paused
+// assign pr1_i.a_addr = {5'd0, a[9:0]};   assign pr1_i.a_d = dout;  assign pr1_i.a_we = vram_cs && wr;
+assign pr1_i.a_addr = {5'd0, pause ? hs_address[9:0] : a[9:0]};
+assign pr1_i.a_d    = pause ? hs_data_in : dout;
+assign pr1_i.a_we   = pause ? hs_vid & hs_write : vram_cs && wr;
 assign pr1_i.b_addr = {5'd0, vram_va};  assign pr1_i.b_d = 8'd0;  assign pr1_i.b_we = 1'b0;
 assign vram_q = pr1_o.a_q;  assign vram_vq = pr1_o.b_q;
 genvar l;

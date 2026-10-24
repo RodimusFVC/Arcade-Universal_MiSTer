@@ -835,7 +835,8 @@ zerohour_board zerohour_b
     .prom_wr      (load_prom),
     .prom_a       (ioctl_addr[6:0]),
     .prom_d       (ioctl_dout),
-    .hs_address   (hs_address[10:0]),
+    // .hs_address   (hs_address[10:0]),   // HSCORE-2026-10-23: original
+    .hs_address   (hs_address),
     .hs_data_out  (zh_hs_data),
     .hs_data_in   (hs_data_in),
     .hs_write     (hs_write & zhour),
@@ -960,7 +961,11 @@ cosmic_board cosmic_b
     // .grid_q       (dc_spr8_d)
     .grid_q       (pool_o[1].b_q),
     .pr0_i        (cs_pr_i[0]),
-    .pr0_o        (pool_o[0])
+    .pr0_o        (pool_o[0]),
+    .hs_address   (hs_address),      // HSCORE-2026-10-23
+    .hs_data_out  (cs_hs_data),
+    .hs_data_in   (hs_data_in),
+    .hs_write     (hs_write & cosmic)
 );
 
 /////////////////////////////  TMS99xx boards  /////////////////////////////
@@ -999,7 +1004,11 @@ tms_board tms_b
     .rom_chr_a    (tm_chr_a),
     .rom_chr_d    (rom_char_d),
     .pr_i         (tm_pr_i),
-    .pr_o         (pool_o)
+    .pr_o         (pool_o),
+    .hs_address   (hs_address),      // HSCORE-2026-10-23
+    .hs_data_out  (tm_hs_data),
+    .hs_data_in   (hs_data_in),
+    .hs_write     (hs_write & tms)
 );
 
 /////////////////////////////  output select  /////////////////////////////
@@ -1013,6 +1022,10 @@ assign video_vblank = tms ? tm_vbl   : cosmic ? cs_vbl   : cheeky ? cm_vbl   : z
 assign video_hs     = tms ? tm_hs    : cosmic ? cs_hs    : cheeky ? cm_hs    : zhour ? zh_hs    : dcastle ? dc_hs    : mrdo ? md_hs    : lb_hs;
 assign video_vs     = tms ? tm_vs    : cosmic ? cs_vs    : cheeky ? cm_vs    : zhour ? zh_vs    : dcastle ? dc_vs    : mrdo ? md_vs    : lb_vs;
 assign audio        = tms ? tm_audio : cosmic ? cs_audio : cheeky ? cm_audio : zhour ? zh_audio : dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
-assign hs_data_out  = (tms | cosmic) ? 8'd0 : cheeky ? cm_hs_data : zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
+// HSCORE-2026-10-23: original below
+// assign hs_data_out  = (tms | cosmic) ? 8'd0 : cheeky ? cm_hs_data : zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
+logic [7:0] cs_hs_data, tm_hs_data;
+assign hs_data_out  = tms ? tm_hs_data : cosmic ? cs_hs_data : cheeky ? cm_hs_data : zhour ? zh_hs_data :
+                      dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
 
 endmodule

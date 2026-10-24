@@ -77,7 +77,13 @@ module cosmic_board
 
     // RAMPOOL-2026-10-23: video RAM lives in board RAM pool block 0 (universal_board.sv; the grid is block 1)
     output ram_pool_pkg::pram_i_t pr0_i,
-    input  ram_pool_pkg::pram_o_t pr0_o
+    input  ram_pool_pkg::pram_o_t pr0_o,
+
+    // HSCORE-2026-10-23: hiscore access to the video RAM (it is also the work RAM: 4000-5FFF / 6000-7FFF)
+    input  logic        [15:0] hs_address,
+    output logic         [7:0] hs_data_out,
+    input  logic         [7:0] hs_data_in,
+    input  logic               hs_write
 );
 
 wire k_panic = (kind == 3'd0);
@@ -143,8 +149,15 @@ wire         nmi_n = k_panic ? 1'b1 : (k_cosa || k_nml) ? ~coin[0] : ~coin[1];
 
 // the shared T80pa in rtl/universal_board.sv
 assign z80pa_0_i.reset_n = ~reset;
-assign z80pa_0_i.cen_p   = cen_p & ~pause;
-assign z80pa_0_i.cen_n   = cen_n & ~pause;
+// HSCORE-2026-10-23: originals below. The hiscore system borrows the video RAM's CPU port while the CPU is paused;
+// pause_x holds the CPU two clocks longer so its first read after a pause sees its own address again.
+// assign z80pa_0_i.cen_p   = cen_p & ~pause;
+// assign z80pa_0_i.cen_n   = cen_n & ~pause;
+logic [1:0] pause_d = 2'b00;
+always_ff @(posedge clk) pause_d <= {pause_d[0], pause};
+wire pause_x = pause | (|pause_d);
+assign z80pa_0_i.cen_p   = cen_p & ~pause_x;
+assign z80pa_0_i.cen_n   = cen_n & ~pause_x;
 assign z80pa_0_i.wait_n  = 1'b1;
 assign z80pa_0_i.int_n   = int_n;
 assign z80pa_0_i.nmi_n   = nmi_n;
@@ -350,7 +363,12 @@ logic [12:0] vram_va;
 //     .clock_a(clk), .address_a(a[12:0]), .data_a(dout), .wren_a(vid_cs && wr), .q_a(vram_q),
 //     .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
 // );
-assign pr0_i.a_addr = {2'd0, a[12:0]};  assign pr0_i.a_d = dout;  assign pr0_i.a_we = vid_cs && wr;
+// HSCORE-2026-10-23: original below; port A is the hiscore system's while paused
+// assign pr0_i.a_addr = {2'd0, a[12:0]};  assign pr0_i.a_d = dout;  assign pr0_i.a_we = vid_cs && wr;
+assign pr0_i.a_addr = {2'd0, pause ? hs_address[12:0] : a[12:0]};
+assign pr0_i.a_d    = pause ? hs_data_in : dout;
+assign pr0_i.a_we   = pause ? hs_write : vid_cs && wr;
+assign hs_data_out  = pr0_o.a_q;
 assign pr0_i.b_addr = {2'd0, vram_va};  assign pr0_i.b_d = 8'd0;  assign pr0_i.b_we = 1'b0;
 assign vram_q = pr0_o.a_q;  assign vram_vq = pr0_o.b_q;
 

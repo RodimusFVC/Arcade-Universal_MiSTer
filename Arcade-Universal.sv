@@ -482,9 +482,12 @@ wire        hs_access_write;
 wire        hs_pause;
 wire        hs_configured;
 
+// HSCORE-2026-10-23: was CFG_ADDRESSWIDTH(4), HS_SCOREWIDTH default 8 (256 B). Largest tables: nomnlnd 1731 B,
+// cosmicg 32 entries.
 hiscore #(
 	.HS_ADDRESSWIDTH(16),
-	.CFG_ADDRESSWIDTH(4),
+	.HS_SCOREWIDTH(11),
+	.CFG_ADDRESSWIDTH(5),
 	.CFG_LENGTHWIDTH(2)
 ) hi (
 	.*,

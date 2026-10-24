@@ -66,6 +66,23 @@
         </part>
     </rom>
 
+    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <rom index="3" md5="none">
+        <part>
+            00 36 E1 C0 00 FF 00 02 00 02 00 01 11 11 00 00
+            00 00 60 23 00 04 00 00
+            00 00 63 20 00 06 23 1D
+            00 00 41 BD 00 01 00 00
+            00 00 41 DD 00 01 00 00
+            00 00 41 FD 00 01 06 06
+            00 00 42 1D 00 01 01 01
+            00 00 42 3D 00 01 01 01
+            00 00 42 5D 00 01 01 01
+        </part>
+    </rom>
+    <rom index="4"></rom>
+    <nvram index="4" size="16"></nvram>
+
     <remark>Red Clash (Tehkan, Set 2) (Kaneko (Tehkan License))</remark>
     <mratimestamp>20261011000000</mratimestamp>
 </misterromdescription>

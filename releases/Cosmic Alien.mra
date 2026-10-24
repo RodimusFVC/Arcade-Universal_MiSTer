@@ -63,6 +63,16 @@
         </part>
     </rom>
 
+    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <rom index="3" md5="none">
+        <part>
+            00 0A 3A BE 00 FF 00 02 00 02 00 01 11 11 00 00
+            00 00 40 0E 00 03 00 00
+        </part>
+    </rom>
+    <rom index="4"></rom>
+    <nvram index="4" size="3"></nvram>
+
     <remark>Cosmic Alien (Version II, Set 1) (Universal)</remark>
     <mratimestamp>20261011000000</mratimestamp>
 </misterromdescription>
