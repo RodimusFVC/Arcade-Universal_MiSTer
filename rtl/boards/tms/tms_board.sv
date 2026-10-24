@@ -51,7 +51,11 @@ module tms_board
     output logic        [14:0] rom_cpu_a,
     input  logic         [7:0] rom_cpu_d,
     output logic        [11:0] rom_chr_a,      // cosmicg colour map / getaway gfx (bit 12 of the gfx address = [15:8])
-    input  logic        [15:0] rom_chr_d
+    input  logic        [15:0] rom_chr_d,
+
+    // RAMPOOL-2026-10-23: the three bitmap planes live in board RAM pool blocks 0-2 (universal_board.sv)
+    output ram_pool_pkg::pram_i_t [2:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [2:0] pr_o
 );
 
 // ------------------------------------------------------------------ clocks
@@ -339,14 +343,23 @@ generate
         wire [7:0] new_p = sel ? ((pl_qa[p] & ~b_m) | (val & b_m)) : pl_qa[p];
         wire [7:0] new_s = sel ? ((sc_qa[p] & ~b_m) | (val & b_m)) : sc_qa[p];
 
-        dpram_dc #(.widthad_a(13)) pl
-        (
-            .clock_a(clk), .address_a(pl_aa),
-            .data_a(getaway ? new_p : b_do),
-            .wren_a(getaway ? (bl_wr && b_main) : (p == 0 && cg_vram && b_wr)),
-            .q_a(pl_qa[p]),
-            .clock_b(clk), .address_b(pl_ab), .q_b(pl_qb[p])
-        );
+        // RAMPOOL-2026-10-23: original below; plane p = pool block p
+        // dpram_dc #(.widthad_a(13)) pl
+        // (
+        //     .clock_a(clk), .address_a(pl_aa),
+        //     .data_a(getaway ? new_p : b_do),
+        //     .wren_a(getaway ? (bl_wr && b_main) : (p == 0 && cg_vram && b_wr)),
+        //     .q_a(pl_qa[p]),
+        //     .clock_b(clk), .address_b(pl_ab), .q_b(pl_qb[p])
+        // );
+        assign pr_i[p].a_addr = {2'd0, pl_aa};
+        assign pr_i[p].a_d    = getaway ? new_p : b_do;
+        assign pr_i[p].a_we   = getaway ? (bl_wr && b_main) : (p == 0 && cg_vram && b_wr);
+        assign pr_i[p].b_addr = {2'd0, pl_ab};
+        assign pr_i[p].b_d    = 8'd0;
+        assign pr_i[p].b_we   = 1'b0;
+        assign pl_qa[p] = pr_o[p].a_q;
+        assign pl_qb[p] = pr_o[p].b_q;
         dpram_dc #(.widthad_a(10)) sc
         (
             .clock_a(clk), .address_a({b_col[1:0], b_dy}), .data_a(new_s),

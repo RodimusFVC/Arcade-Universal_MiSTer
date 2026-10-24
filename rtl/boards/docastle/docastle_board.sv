@@ -95,7 +95,11 @@ module docastle_board
     input  logic        [12:0] hs_address,
     output logic         [7:0] hs_data_out,
     input  logic         [7:0] hs_data_in,
-    input  logic               hs_write
+    input  logic               hs_write,
+
+    // RAMPOOL-2026-10-23: main RAM / sub RAM / video RAM live in the board RAM pool (universal_board.sv)
+    output ram_pool_pkg::pram_i_t [2:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [2:0] pr_o
 );
 
 // ------------------------------------------------------------------ clocks
@@ -168,11 +172,15 @@ assign rom_main_a   = m_a;
 
 logic [7:0] m_ram_q, vram_q, cram_q;
 
-dpram_dc #(.widthad_a(13)) main_ram
-(
-    .clock_a(clk), .address_a(m_ram_a), .data_a(m_do), .wren_a(m_ram && !m_wr_n), .q_a(m_ram_q),
-    .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
-);
+// RAMPOOL-2026-10-23: original below; pool block 0
+// dpram_dc #(.widthad_a(13)) main_ram
+// (
+//     .clock_a(clk), .address_a(m_ram_a), .data_a(m_do), .wren_a(m_ram && !m_wr_n), .q_a(m_ram_q),
+//     .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
+// );
+assign pr_i[0].a_addr = {2'd0, m_ram_a};     assign pr_i[0].a_d = m_do;        assign pr_i[0].a_we = m_ram && !m_wr_n;
+assign pr_i[0].b_addr = {2'd0, hs_address};  assign pr_i[0].b_d = hs_data_in;  assign pr_i[0].b_we = hs_write;
+assign m_ram_q = pr_o[0].a_q;  assign hs_data_out = pr_o[0].b_q;
 
 // ------------------------------------------------------------------ sub CPU
 logic        s_mreq_n, s_iorq_n, s_rd_n, s_wr_n, s_m1_n, s_rfsh_n;
@@ -209,11 +217,15 @@ wire [1:0] s_sn_n = s_a[11:10];
 assign rom_sub_a = s_a[13:0];
 
 logic [7:0] s_ram_q;
-dpram_dc #(.widthad_a(11)) sub_ram
-(
-    .clock_a(clk), .address_a(s_a[10:0]), .data_a(s_do), .wren_a(s_ram && !s_wr_n), .q_a(s_ram_q),
-    .clock_b(clk)
-);
+// RAMPOOL-2026-10-23: original below; pool block 1
+// dpram_dc #(.widthad_a(11)) sub_ram
+// (
+//     .clock_a(clk), .address_a(s_a[10:0]), .data_a(s_do), .wren_a(s_ram && !s_wr_n), .q_a(s_ram_q),
+//     .clock_b(clk)
+// );
+assign pr_i[1].a_addr = {4'd0, s_a[10:0]};  assign pr_i[1].a_d = s_do;  assign pr_i[1].a_we = s_ram && !s_wr_n;
+assign pr_i[1].b_addr = 15'd0;              assign pr_i[1].b_d = 8'd0;  assign pr_i[1].b_we = 1'b0;
+assign s_ram_q = pr_o[1].a_q;
 
 // ------------------------------------------------------------------ main <-> sub latch with main WAIT
 logic [7:0] latch = 8'h00;
@@ -399,11 +411,15 @@ end
 logic [9:0] v_tile_a;
 logic [7:0] v_code, v_attr;
 
-dpram_dc #(.widthad_a(10)) video_ram
-(
-    .clock_a(clk), .address_a(m_a[9:0]), .data_a(m_do), .wren_a(m_vram && !m_wr_n), .q_a(vram_q),
-    .clock_b(clk), .address_b(v_tile_a), .q_b(v_code)
-);
+// RAMPOOL-2026-10-23: original below; pool block 2
+// dpram_dc #(.widthad_a(10)) video_ram
+// (
+//     .clock_a(clk), .address_a(m_a[9:0]), .data_a(m_do), .wren_a(m_vram && !m_wr_n), .q_a(vram_q),
+//     .clock_b(clk), .address_b(v_tile_a), .q_b(v_code)
+// );
+assign pr_i[2].a_addr = {5'd0, m_a[9:0]};  assign pr_i[2].a_d = m_do;  assign pr_i[2].a_we = m_vram && !m_wr_n;
+assign pr_i[2].b_addr = {5'd0, v_tile_a};  assign pr_i[2].b_d = 8'd0;  assign pr_i[2].b_we = 1'b0;
+assign vram_q = pr_o[2].a_q;  assign v_code = pr_o[2].b_q;
 dpram_dc #(.widthad_a(10)) color_ram
 (
     .clock_a(clk), .address_a(m_a[9:0]), .data_a(m_do), .wren_a(m_cram && !m_wr_n), .q_a(cram_q),

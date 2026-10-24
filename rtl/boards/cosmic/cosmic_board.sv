@@ -73,7 +73,11 @@ module cosmic_board
     output logic         [7:0] grid_wd,
     output logic               grid_we,
     output logic        [12:0] grid_ra,
-    input  logic         [7:0] grid_q
+    input  logic         [7:0] grid_q,
+
+    // RAMPOOL-2026-10-23: video RAM lives in board RAM pool block 0 (universal_board.sv; the grid is block 1)
+    output ram_pool_pkg::pram_i_t pr0_i,
+    input  ram_pool_pkg::pram_o_t pr0_o
 );
 
 wire k_panic = (kind == 3'd0);
@@ -202,6 +206,81 @@ always_ff @(posedge clk) begin
     end
 end
 
+// MULPOOL-2026-10-23: original sound board instances below (each built its own multipliers)
+// // Space Panic: 8015 sound board (rtl/boards/cosmic/panic_sound.sv)
+// logic signed [15:0] panic_snd;
+// panic_sound panic_snd_b
+// (
+//     .clk    (clk),
+//     .reset  (reset | ~k_panic),
+//     .trig   (snd_trig),
+//     .music  (dac),
+//     .coin_n (in2[6] & in2[7]),                                     // coin switches wired to the sound board
+//     .audio  (panic_snd)
+// );
+// // Cosmic Alien: 7910-S sound board (rtl/boards/cosmic/cosmica_sound.sv)
+// logic signed [15:0] cosa_snd;
+// cosmica_sound cosa_snd_b
+// (
+//     .clk    (clk),
+//     .reset  (reset | ~k_cosa),
+//     .trig   (snd_trig[11:0]),
+//     .coin   (coin[0]),
+//     .audio  (cosa_snd)
+// );
+// // Magical Spot / Devil Zone: 8013 / 8022 sound board; No Man's Land: 8003 (rtl/boards/cosmic/magspot_sound.sv, nomnlnd_sound.sv)
+// logic signed [15:0] ms_snd, nml_snd;
+// magspot_sound ms_snd_b
+// (
+//     .clk     (clk),
+//     .reset   (reset | ~(k_mag & ~k_nml)),
+//     .snd     (mg_snd),
+//     .coin_sw (coin[0] | coin[1]),
+//     .audio   (ms_snd)
+// );
+// nomnlnd_sound nml_snd_b
+// (
+//     .clk     (clk),
+//     .reset   (reset | ~k_nml),
+//     .snd     (mg_snd),
+//     .coin_sw (coin[0]),
+//     .audio   (nml_snd)
+// );
+// assign audio = k_panic ? panic_snd : k_cosa ? cosa_snd : k_nml ? nml_snd : ms_snd;
+
+// MULPOOL-2026-10-23: one multiplier pool for the four sound boards. Only one board runs per load (the others are
+// held in reset), so each multiply slot is built once and fed by the active board; every board keeps the same
+// product bits it kept with its own multiplier (bit-exact). Slots: E = engine s32 x s28, X = s32 x s32,
+// W = s34 x s17 (first-level mix weights). Every pooled operand comes from registers / plain logic, never from
+// another pooled product: products feeding a second multiply (sq() after nzv, w() after ngate) stay local, and
+// the x 9000 output scale is shifts, so no path crosses two pooled multipliers (first try did: -27.6 ns).
+// plain signals per board and field (a packed struct made Verilator see X -> W as one circular signal)
+logic        [31:0] pn_ea, ca_ea, ms_ea, nm_ea;
+logic        [27:0] pn_eb, ca_eb, ms_eb, nm_eb;
+logic [3:0]  [31:0] pn_xa, ca_xa, ms_xa, nm_xa, pn_xb, ca_xb, ms_xb, nm_xb;
+logic [9:0]  [33:0] pn_wa /*verilator split_var*/, ca_wa /*verilator split_var*/, ms_wa /*verilator split_var*/,
+                    nm_wa /*verilator split_var*/;   // sim only
+logic [9:0]  [16:0] pn_wb, ca_wb, ms_wb, nm_wb;
+wire         [31:0] sel_ea = k_panic ? pn_ea : k_cosa ? ca_ea : k_nml ? nm_ea : ms_ea;
+wire         [27:0] sel_eb = k_panic ? pn_eb : k_cosa ? ca_eb : k_nml ? nm_eb : ms_eb;
+wire  [3:0]  [31:0] sel_xa = k_panic ? pn_xa : k_cosa ? ca_xa : k_nml ? nm_xa : ms_xa;
+wire  [3:0]  [31:0] sel_xb = k_panic ? pn_xb : k_cosa ? ca_xb : k_nml ? nm_xb : ms_xb;
+wire  [9:0]  [33:0] sel_wa /*verilator split_var*/ = k_panic ? pn_wa : k_cosa ? ca_wa : k_nml ? nm_wa : ms_wa;
+wire  [9:0]  [16:0] sel_wb = k_panic ? pn_wb : k_cosa ? ca_wb : k_nml ? nm_wb : ms_wb;
+logic [59:0]  mp_ep;
+logic [3:0]  [63:0] mp_xp;
+logic [9:0]  [50:0] mp_wp /*verilator split_var*/;
+assign mp_ep = $signed(sel_ea) * $signed(sel_eb);
+genvar mk;
+generate
+    for (mk = 0; mk < 4; mk++) begin : mpx
+        assign mp_xp[mk] = $signed(sel_xa[mk]) * $signed(sel_xb[mk]);
+    end
+    for (mk = 0; mk < 10; mk++) begin : mpw
+        assign mp_wp[mk] = $signed(sel_wa[mk]) * $signed(sel_wb[mk]);
+    end
+endgenerate
+
 // Space Panic: 8015 sound board (rtl/boards/cosmic/panic_sound.sv)
 logic signed [15:0] panic_snd;
 panic_sound panic_snd_b
@@ -211,7 +290,9 @@ panic_sound panic_snd_b
     .trig   (snd_trig),
     .music  (dac),
     .coin_n (in2[6] & in2[7]),                                     // coin switches wired to the sound board
-    .audio  (panic_snd)
+    .audio  (panic_snd),
+    .mp_ea  (pn_ea), .mp_eb(pn_eb), .mp_ep(mp_ep), .mp_xa(pn_xa), .mp_xb(pn_xb), .mp_xp(mp_xp),
+    .mp_wa  (pn_wa), .mp_wb(pn_wb), .mp_wp(mp_wp)
 );
 // Cosmic Alien: 7910-S sound board (rtl/boards/cosmic/cosmica_sound.sv)
 logic signed [15:0] cosa_snd;
@@ -221,7 +302,9 @@ cosmica_sound cosa_snd_b
     .reset  (reset | ~k_cosa),
     .trig   (snd_trig[11:0]),
     .coin   (coin[0]),
-    .audio  (cosa_snd)
+    .audio  (cosa_snd),
+    .mp_ea  (ca_ea), .mp_eb(ca_eb), .mp_ep(mp_ep), .mp_xa(ca_xa), .mp_xb(ca_xb), .mp_xp(mp_xp),
+    .mp_wa  (ca_wa), .mp_wb(ca_wb), .mp_wp(mp_wp)
 );
 // Magical Spot / Devil Zone: 8013 / 8022 sound board; No Man's Land: 8003 (rtl/boards/cosmic/magspot_sound.sv, nomnlnd_sound.sv)
 logic signed [15:0] ms_snd, nml_snd;
@@ -231,7 +314,9 @@ magspot_sound ms_snd_b
     .reset   (reset | ~(k_mag & ~k_nml)),
     .snd     (mg_snd),
     .coin_sw (coin[0] | coin[1]),
-    .audio   (ms_snd)
+    .audio   (ms_snd),
+    .mp_ea   (ms_ea), .mp_eb(ms_eb), .mp_ep(mp_ep), .mp_xa(ms_xa), .mp_xb(ms_xb), .mp_xp(mp_xp),
+    .mp_wa   (ms_wa), .mp_wb(ms_wb), .mp_wp(mp_wp)
 );
 nomnlnd_sound nml_snd_b
 (
@@ -239,7 +324,9 @@ nomnlnd_sound nml_snd_b
     .reset   (reset | ~k_nml),
     .snd     (mg_snd),
     .coin_sw (coin[0]),
-    .audio   (nml_snd)
+    .audio   (nml_snd),
+    .mp_ea   (nm_ea), .mp_eb(nm_eb), .mp_ep(mp_ep), .mp_xa(nm_xa), .mp_xb(nm_xb), .mp_xp(mp_xp),
+    .mp_wa   (nm_wa), .mp_wb(nm_wb), .mp_wp(mp_wp)
 );
 assign audio = k_panic ? panic_snd : k_cosa ? cosa_snd : k_nml ? nml_snd : ms_snd;
 
@@ -257,11 +344,15 @@ end
 // video RAM (also the work RAM)
 logic  [7:0] vram_q, vram_vq;
 logic [12:0] vram_va;
-dpram_dc #(.widthad_a(13)) video_ram
-(
-    .clock_a(clk), .address_a(a[12:0]), .data_a(dout), .wren_a(vid_cs && wr), .q_a(vram_q),
-    .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
-);
+// RAMPOOL-2026-10-23: original below; pool block 0
+// dpram_dc #(.widthad_a(13)) video_ram
+// (
+//     .clock_a(clk), .address_a(a[12:0]), .data_a(dout), .wren_a(vid_cs && wr), .q_a(vram_q),
+//     .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
+// );
+assign pr0_i.a_addr = {2'd0, a[12:0]};  assign pr0_i.a_d = dout;  assign pr0_i.a_we = vid_cs && wr;
+assign pr0_i.b_addr = {2'd0, vram_va};  assign pr0_i.b_d = 8'd0;  assign pr0_i.b_we = 1'b0;
+assign vram_q = pr0_o.a_q;  assign vram_vq = pr0_o.b_q;
 
 logic [7:0] spram[32];
 always_ff @(posedge clk) if (spr_cs && wr) spram[a[4:0]] <= dout;

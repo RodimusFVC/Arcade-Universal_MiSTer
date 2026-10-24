@@ -25,7 +25,18 @@ module cosmica_sound
     input  logic               reset,
     input  logic        [11:0] trig,           // 7000-700B
     input  logic               coin,           // coin switch, active high
-    output logic signed [15:0] audio
+    output logic signed [15:0] audio,
+
+    // MULPOOL-2026-10-23: multiplier pool in cosmic_board.sv (shared by the four Cosmic sound boards)
+    output logic        [31:0]       mp_ea,    // engine: s32 x s28
+    output logic        [27:0]       mp_eb,
+    input  logic        [59:0]       mp_ep,
+    output logic [3:0]  [31:0]       mp_xa,    // s32 x s32
+    output logic [3:0]  [31:0]       mp_xb,
+    input  logic [3:0]  [63:0]       mp_xp,
+    output logic [9:0]  [33:0]       mp_wa,    // s34 x s17
+    output logic [9:0]  [16:0]       mp_wb,
+    input  logic [9:0]  [50:0]       mp_wp
 );
 
 localparam logic [26:0] A_5MS    = 27'd1398215;
@@ -79,6 +90,22 @@ logic [31:0] nz = 32'h1;
 wire         white_p = nz[0];
 
 // ------------------------------------------------------------------ voices -> mix
+// MULPOOL-2026-10-23: originals below; the products now come from the shared pool (same bits kept, so bit-exact)
+// function automatic logic signed [31:0] sq(input logic s, input logic signed [31:0] env, input logic [14:0] amp);
+//     logic signed [45:0] p, t, e;
+//     e = {{14{env[31]}}, env};
+//     p = (s ? e : -e) * $signed({1'b0, amp});
+//     t = p >>> 24;
+//     sq = t[31:0];
+// endfunction
+// function automatic logic signed [31:0] nzv(input logic signed [31:0] n, input logic signed [31:0] env, input logic [14:0] amp);
+//     logic signed [63:0] p;
+//     logic signed [31:0] q;
+//     p = n * env;
+//     q = p[55:24];
+//     nzv = sq(1'b1, q, amp);
+// endfunction
+// sq() kept local where its operand comes from a pooled product (nzv): a path may cross only one pooled multiplier
 function automatic logic signed [31:0] sq(input logic s, input logic signed [31:0] env, input logic [14:0] amp);
     logic signed [45:0] p, t, e;
     e = {{14{env[31]}}, env};
@@ -86,12 +113,16 @@ function automatic logic signed [31:0] sq(input logic s, input logic signed [31:
     t = p >>> 24;
     sq = t[31:0];
 endfunction
-function automatic logic signed [31:0] nzv(input logic signed [31:0] n, input logic signed [31:0] env, input logic [14:0] amp);
-    logic signed [63:0] p;
-    logic signed [31:0] q;
-    p = n * env;
-    q = p[55:24];
-    nzv = sq(1'b1, q, amp);
+function automatic logic signed [33:0] sq_a(input logic s, input logic signed [31:0] env);   // sq() operand: +/- env
+    logic signed [33:0] e;
+    e = {{2{env[31]}}, env};
+    sq_a = s ? e : -e;
+endfunction
+function automatic logic signed [31:0] sq_r(input logic [50:0] pp);    // sq() result: low 46 bits of the product >>> 24
+    logic signed [45:0] p, t;
+    p = pp[45:0];
+    t = p >>> 24;
+    sq_r = t[31:0];
 endfunction
 
 wire signed [31:0] n_hp  = (white_p ? ONE : -ONE) - v[N_LP3];       // above ~3 kHz
@@ -100,11 +131,30 @@ wire signed [31:0] n_low = (v[N_LP8] <<< 4) - (v[N_LP8] <<< 1);     // ~800 Hz l
 wire               db_chop = db_sel[2] && db_sel[0] && t_lfo >= (T_LFO >> 1);
 wire signed [31:0] db_env  = db_chop ? 32'sd0 : v[E_DB];
 
-wire signed [31:0] mix_v = sq(ph_bg[31], ONE, 15'd1000)
-                         + sq(ph_da[31], v[E_DA], 15'd2600) + nzv(n_hp, v[E_DA], 15'd1200) + sq(ph_db[31], db_env, 15'd2200)
-                         + sq(ph_coin[31:30] == 2'd0, v[E_COIN], 15'd5000)
-                         + nzv(n_hp, v[E_FIRE], 15'd2400) + nzv(n_mid, v[E_SEXP], 15'd2400)
-                         + nzv(n_low, v[E_LEXP], 15'd4000);
+// MULPOOL-2026-10-23: original mix below
+// wire signed [31:0] mix_v = sq(ph_bg[31], ONE, 15'd1000)
+//                          + sq(ph_da[31], v[E_DA], 15'd2600) + nzv(n_hp, v[E_DA], 15'd1200) + sq(ph_db[31], db_env, 15'd2200)
+//                          + sq(ph_coin[31:30] == 2'd0, v[E_COIN], 15'd5000)
+//                          + nzv(n_hp, v[E_FIRE], 15'd2400) + nzv(n_mid, v[E_SEXP], 15'd2400)
+//                          + nzv(n_low, v[E_LEXP], 15'd4000);
+// nzv(n, env, amp) = sq(1, (n * env)[55:24], amp): X slots 0-3 (pooled), then a local sq(); W 4-9 unused
+assign mp_xa[0] = n_hp;   assign mp_xb[0] = v[E_DA];
+assign mp_xa[1] = n_hp;   assign mp_xb[1] = v[E_FIRE];
+assign mp_xa[2] = n_mid;  assign mp_xb[2] = v[E_SEXP];
+assign mp_xa[3] = n_low;  assign mp_xb[3] = v[E_LEXP];
+assign mp_wa[0]  = sq_a(ph_bg[31], ONE);                     assign mp_wb[0]  = 17'd1000;
+assign mp_wa[1]  = sq_a(ph_da[31], v[E_DA]);                 assign mp_wb[1]  = 17'd2600;
+assign mp_wa[2]  = sq_a(ph_db[31], db_env);                  assign mp_wb[2]  = 17'd2200;
+assign mp_wa[3]  = sq_a(ph_coin[31:30] == 2'd0, v[E_COIN]);  assign mp_wb[3]  = 17'd5000;
+assign mp_wa[4]  = 34'd0;  assign mp_wb[4]  = 17'd0;
+assign mp_wa[5]  = 34'd0;  assign mp_wb[5]  = 17'd0;
+assign mp_wa[6]  = 34'd0;  assign mp_wb[6]  = 17'd0;
+assign mp_wa[7]  = 34'd0;  assign mp_wb[7]  = 17'd0;
+assign mp_wa[8]  = 34'd0;  assign mp_wb[8]  = 17'd0;
+assign mp_wa[9]  = 34'd0;  assign mp_wb[9]  = 17'd0;
+wire signed [31:0] mix_v = sq_r(mp_wp[0]) + sq_r(mp_wp[1]) + sq_r(mp_wp[2]) + sq_r(mp_wp[3])
+                         + sq(1'b1, mp_xp[0][55:24], 15'd1200) + sq(1'b1, mp_xp[1][55:24], 15'd2400)
+                         + sq(1'b1, mp_xp[2][55:24], 15'd2400) + sq(1'b1, mp_xp[3][55:24], 15'd4000);
 wire signed [31:0] mix_s = enable ? (mix_v <<< 8) : 32'sd0;         // enable low: IC1 shorts the mix bus
 
 logic signed [31:0] x;
@@ -135,9 +185,13 @@ logic        [26:0] p_a;
 logic        [4:0]  p_n = 5'd31, w_n = 5'd31;
 logic signed [58:0] w_p;
 wire  signed [31:0] w_sum = v[w_n] + {{5{w_p[58]}}, w_p[58:32]};
+assign mp_ea = p_x;
+assign mp_eb = {1'b0, p_a};
 always_ff @(posedge clk) begin
     p_x <= x; p_a <= a; p_n <= nd;
-    w_p <= p_x * $signed({1'b0, p_a});
+    // MULPOOL-2026-10-23: original
+    // w_p <= p_x * $signed({1'b0, p_a});
+    w_p <= mp_ep[58:0];
     w_n <= p_n;
     if (reset) begin
         for (int i = 0; i < 32; i++) v[i] <= 32'sd0;

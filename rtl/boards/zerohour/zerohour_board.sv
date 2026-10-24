@@ -66,7 +66,11 @@ module zerohour_board
     input  logic        [10:0] hs_address,
     output logic         [7:0] hs_data_out,
     input  logic         [7:0] hs_data_in,
-    input  logic               hs_write
+    input  logic               hs_write,
+
+    // RAMPOOL-2026-10-23: work RAM / video RAM live in board RAM pool blocks 0 / 1 (universal_board.sv)
+    output ram_pool_pkg::pram_i_t pr0_i, pr1_i,
+    input  ram_pool_pkg::pram_o_t pr0_o, pr1_o
 );
 
 // ------------------------------------------------------------------ clocks
@@ -172,16 +176,24 @@ logic [7:0] spr_q[4], spr_vq[4];
 logic [9:0] vram_va;
 logic [7:0] spr_ve;
 
-dpram_dc #(.widthad_a(11)) work_ram
-(
-    .clock_a(clk), .address_a(a[10:0]), .data_a(dout), .wren_a(ram_cs && wr), .q_a(ram_q),
-    .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
-);
-dpram_dc #(.widthad_a(10)) video_ram
-(
-    .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(vram_cs && wr), .q_a(vram_q),
-    .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
-);
+// RAMPOOL-2026-10-23: original below; pool block 0
+// dpram_dc #(.widthad_a(11)) work_ram
+// (
+//     .clock_a(clk), .address_a(a[10:0]), .data_a(dout), .wren_a(ram_cs && wr), .q_a(ram_q),
+//     .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
+// );
+assign pr0_i.a_addr = {4'd0, a[10:0]};      assign pr0_i.a_d = dout;        assign pr0_i.a_we = ram_cs && wr;
+assign pr0_i.b_addr = {4'd0, hs_address};   assign pr0_i.b_d = hs_data_in;  assign pr0_i.b_we = hs_write;
+assign ram_q = pr0_o.a_q;  assign hs_data_out = pr0_o.b_q;
+// RAMPOOL-2026-10-23: original below; pool block 1
+// dpram_dc #(.widthad_a(10)) video_ram
+// (
+//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(vram_cs && wr), .q_a(vram_q),
+//     .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
+// );
+assign pr1_i.a_addr = {5'd0, a[9:0]};   assign pr1_i.a_d = dout;  assign pr1_i.a_we = vram_cs && wr;
+assign pr1_i.b_addr = {5'd0, vram_va};  assign pr1_i.b_d = 8'd0;  assign pr1_i.b_we = 1'b0;
+assign vram_q = pr1_o.a_q;  assign vram_vq = pr1_o.b_q;
 genvar l;
 generate
     for (l = 0; l < 4; l++) begin : spr_lane

@@ -29,7 +29,18 @@ module nomnlnd_sound
     input  logic               reset,
     input  logic        [15:0] snd,            // D7 latched at 4800-480F
     input  logic               coin_sw,        // coin switch, active high
-    output logic signed [15:0] audio
+    output logic signed [15:0] audio,
+
+    // MULPOOL-2026-10-23: multiplier pool in cosmic_board.sv (shared by the four Cosmic sound boards)
+    output logic        [31:0]       mp_ea,    // engine: s32 x s28
+    output logic        [27:0]       mp_eb,
+    input  logic        [59:0]       mp_ep,
+    output logic [3:0]  [31:0]       mp_xa,    // s32 x s32
+    output logic [3:0]  [31:0]       mp_xb,
+    input  logic [3:0]  [63:0]       mp_xp,
+    output logic [9:0]  [33:0]       mp_wa,    // s34 x s17
+    output logic [9:0]  [16:0]       mp_wb,
+    input  logic [9:0]  [50:0]       mp_wp
 );
 
 localparam logic [26:0] A_PINK  = 27'd6986525;      // R43 10k x C15 0.1u = 1 ms
@@ -60,11 +71,27 @@ wire gotem = snd[14], dead = snd[9], music = snd[10], enable = snd[11];
 function automatic logic signed [31:0] vclip(input logic signed [31:0] a, input logic signed [31:0] lo, input logic signed [31:0] hi);
     vclip = (a < lo) ? lo : (a > hi) ? hi : a;
 endfunction
+// MULPOOL-2026-10-23: original below; the products now come from the shared pool (same bits kept, so bit-exact)
+// function automatic logic signed [31:0] w(input logic signed [31:0] vv, input logic [15:0] k);   // (V - 6 V) x k / 2^16
+//     logic signed [47:0] p, d;
+//     d = {{16{vv[31]}}, vv} - {{16{V6[31]}}, V6};
+//     p = d * $signed({1'b0, k});
+//     w = p[47:16];
+// endfunction
+// w() kept local where its operand comes from a pooled product (ngate): a path may cross only one pooled multiplier
 function automatic logic signed [31:0] w(input logic signed [31:0] vv, input logic [15:0] k);   // (V - 6 V) x k / 2^16
     logic signed [47:0] p, d;
     d = {{16{vv[31]}}, vv} - {{16{V6[31]}}, V6};
     p = d * $signed({1'b0, k});
     w = p[47:16];
+endfunction
+function automatic logic signed [33:0] w_a(input logic signed [31:0] vv);     // w() operand: V - 6 V (33 bits)
+    logic signed [47:0] d;
+    d = {{16{vv[31]}}, vv} - {{16{V6[31]}}, V6};
+    w_a = d[33:0];
+endfunction
+function automatic logic signed [31:0] w_r(input logic [50:0] pp);            // w() result: product[47:16]
+    w_r = pp[47:16];
 endfunction
 
 localparam logic [4:0] PK = 5'd0, AC_C = 5'd1, AM_CV = 5'd2, AM_C = 5'd3, TC_C = 5'd4, TD_CV = 5'd5, TD_C = 5'd6, TW_C = 5'd7,
@@ -90,7 +117,9 @@ wire signed [31:0] ac_vin = (lsb ? 32'sd0 : 32'sd68107000) + (gsb ? 32'sd0 : 32'
 wire signed [31:0] ac_cv  = (ac_vin >>> 1) + (ac_vin >>> 2) + (ac_vin >>> 6) + V1_85;           // through R15 1k
 wire        [3:0] ac_pop = {3'd0, ac_n[0]} + {3'd0, ac_n[1]} + {3'd0, ac_n[2]} + {3'd0, ac_n[3]} + {3'd0, ac_n[4]}
                          + {3'd0, ac_n[5]} + {3'd0, ac_n[6]} + {3'd0, ac_n[7]};
-wire signed [31:0] am_com = $signed({28'd0, ac_pop}) * 32'sd25165824;                            // 12 V x n / 8
+// MULPOOL-2026-10-23: original; 25165824 = 2^24 + 2^23, so two shifts give the same 32 bits
+// wire signed [31:0] am_com = $signed({28'd0, ac_pop}) * 32'sd25165824;                            // 12 V x n / 8
+wire signed [31:0] am_com = $signed({4'd0, ac_pop, 24'd0}) + $signed({5'd0, ac_pop, 23'd0});     // 12 V x n / 8
 // enemy supplement: Q1-Q3 ^ round clear through 51k / 100k / 51k (0.4 / 0.2 / 0.4)
 wire        [2:0] en_b   = en_n[2:0] ^ {3{rclear}};
 wire signed [31:0] en_cv = (en_b[0] ? 32'sd80530637 : 0) + (en_b[1] ? 32'sd40265318 : 0) + (en_b[2] ? 32'sd80530637 : 0);
@@ -106,22 +135,53 @@ wire signed [31:0] o_ge = qGE ? V10_3 : V0_1;
 wire signed [31:0] dev  = pink - V6;
 // player dead / coin: inverting x10 / x4.7 noise stages whose + input is (C + 12 V) / 2. Taken literally they leak
 // half the noise at rest (+ input at the rail); modelled as the evident intent: noise x (12 V - C) / 12 V
-function automatic logic signed [31:0] ngate(input logic signed [31:0] c, input logic signed [31:0] n);
-    logic signed [63:0] p, q;
-    logic signed [31:0] g;
-    g = vclip(V12 - c, 32'sd0, V12);
-    p = {{32{n[31]}}, n} * {{32{g[31]}}, g};
-    q = (p >>> 28) + (p >>> 30);                                            // g / 12 V ~ g / 2^27.6
-    ngate = vclip(V6 + q[31:0], V0_5, V10_5);
+// MULPOOL-2026-10-23: original below (64 x 64 of two sign-extended 32-bit values = the exact 32 x 32 product)
+// function automatic logic signed [31:0] ngate(input logic signed [31:0] c, input logic signed [31:0] n);
+//     logic signed [63:0] p, q;
+//     logic signed [31:0] g;
+//     g = vclip(V12 - c, 32'sd0, V12);
+//     p = {{32{n[31]}}, n} * {{32{g[31]}}, g};
+//     q = (p >>> 28) + (p >>> 30);                                            // g / 12 V ~ g / 2^27.6
+//     ngate = vclip(V6 + q[31:0], V0_5, V10_5);
+// endfunction
+// wire signed [31:0] o_de = ngate(v[DE_V], (dev <<< 3) + (dev <<< 1));                         // x10
+// wire signed [31:0] o_co = ngate(v[CO_V], (dev <<< 2) + (dev >>> 1) + (dev >>> 3));            // x4.7
+function automatic logic signed [31:0] ng_g(input logic signed [31:0] c);           // ngate() gain operand
+    ng_g = vclip(V12 - c, 32'sd0, V12);
 endfunction
-wire signed [31:0] o_de = ngate(v[DE_V], (dev <<< 3) + (dev <<< 1));                         // x10
-wire signed [31:0] o_co = ngate(v[CO_V], (dev <<< 2) + (dev >>> 1) + (dev >>> 3));            // x4.7
+function automatic logic signed [31:0] ng_r(input logic [63:0] pp);                // ngate() result from the product
+    logic signed [63:0] p, q;
+    p = pp;
+    q = (p >>> 28) + (p >>> 30);                                            // g / 12 V ~ g / 2^27.6
+    ng_r = vclip(V6 + q[31:0], V0_5, V10_5);
+endfunction
+assign mp_xa[0] = (dev <<< 3) + (dev <<< 1);                       assign mp_xb[0] = ng_g(v[DE_V]);   // x10
+assign mp_xa[1] = (dev <<< 2) + (dev >>> 1) + (dev >>> 3);         assign mp_xb[1] = ng_g(v[CO_V]);   // x4.7
+assign mp_xa[2] = 32'd0;  assign mp_xb[2] = 32'd0;
+assign mp_xa[3] = 32'd0;  assign mp_xb[3] = 32'd0;
+wire signed [31:0] o_de = ng_r(mp_xp[0]);
+wire signed [31:0] o_co = ng_r(mp_xp[1]);
 wire signed [31:0] o_mu = music ? V10_3 : V0_1;
 
 // bus: R53 470k, R54 330k, R55 200k, R56 470k, R57 100k, R58 200k, R59 100k, R60 100k, R61 10k (weights x 2^16)
-wire signed [31:0] mix_raw = (march ? w(o_am, 16'd948) : 0) + (tank ? w(o_td, 16'd1348) + w(o_tw, 16'd2225) : 0)
-                           + (en_run ? w(o_en, 16'd948) : 0) + w(o_fi, 16'd4449) + (gotem ? w(o_ge, 16'd2225) : 0)
-                           + w(o_de, 16'd4449) + w(o_mu, 16'd4449) + w(o_co, 16'd44491);
+// MULPOOL-2026-10-23: original
+// wire signed [31:0] mix_raw = (march ? w(o_am, 16'd948) : 0) + (tank ? w(o_td, 16'd1348) + w(o_tw, 16'd2225) : 0)
+//                            + (en_run ? w(o_en, 16'd948) : 0) + w(o_fi, 16'd4449) + (gotem ? w(o_ge, 16'd2225) : 0)
+//                            + w(o_de, 16'd4449) + w(o_mu, 16'd4449) + w(o_co, 16'd44491);
+assign mp_wa[0] = w_a(o_am);  assign mp_wb[0] = 17'd948;
+assign mp_wa[1] = w_a(o_td);  assign mp_wb[1] = 17'd1348;
+assign mp_wa[2] = w_a(o_tw);  assign mp_wb[2] = 17'd2225;
+assign mp_wa[3] = w_a(o_en);  assign mp_wb[3] = 17'd948;
+assign mp_wa[4] = w_a(o_fi);  assign mp_wb[4] = 17'd4449;
+assign mp_wa[5] = w_a(o_ge);  assign mp_wb[5] = 17'd2225;
+assign mp_wa[6] = w_a(o_mu);  assign mp_wb[6] = 17'd4449;
+assign mp_wa[7] = 34'd0;      assign mp_wb[7] = 17'd0;
+assign mp_wa[8] = 34'd0;      assign mp_wb[8] = 17'd0;
+assign mp_wa[9] = 34'd0;      assign mp_wb[9] = 17'd0;
+// o_de / o_co come from pooled ngate products, so their weights stay local (original w())
+wire signed [31:0] mix_raw = (march ? w_r(mp_wp[0]) : 0) + (tank ? w_r(mp_wp[1]) + w_r(mp_wp[2]) : 0)
+                           + (en_run ? w_r(mp_wp[3]) : 0) + w_r(mp_wp[4]) + (gotem ? w_r(mp_wp[5]) : 0)
+                           + w(o_de, 16'd4449) + w_r(mp_wp[6]) + w(o_co, 16'd44491);
 wire signed [31:0] mix = (v[EN_M] > V6) ? mix_raw : 32'sd0;                                 // IC16 through R50 / C17
 
 `define AST(CAP, Q, RST, ACH, ADIS) begin x = ((RST) && (Q)) ? V12 - v[CAP] : -v[CAP]; a = ((RST) && (Q)) ? ACH : ADIS; end
@@ -159,7 +219,9 @@ logic signed [58:0] w_p;
 wire  signed [31:0] w_sum = v[w_n] + {{5{w_p[58]}}, w_p[58:32]};
 always_ff @(posedge clk) begin
     p_x <= x; p_a <= a; p_n <= nd;
-    w_p <= p_x * $signed({1'b0, p_a});
+    // MULPOOL-2026-10-23: original
+    // w_p <= p_x * $signed({1'b0, p_a});
+    w_p <= mp_ep[58:0];
     w_n <= p_n;
     if (reset) begin
         for (int i = 0; i < 32; i++) v[i] <= 32'sd0;
@@ -207,7 +269,13 @@ always_ff @(posedge clk) begin
 end
 
 wire signed [31:0] y  = mix - v[HPF];
-wire signed [47:0] yo = y * 16'sd9000;
+// MULPOOL-2026-10-23: original
+// wire signed [47:0] yo = y * 16'sd9000;
+// x 9000 = 8192 + 512 + 256 + 32 + 8: shifts and adds, the same 48 bits, no multiplier
+wire signed [47:0] y48 = {{16{y[31]}}, y};
+wire signed [47:0] yo = (y48 <<< 13) + (y48 <<< 9) + (y48 <<< 8) + (y48 <<< 5) + (y48 <<< 3);
+assign mp_ea = p_x;
+assign mp_eb = {1'b0, p_a};
 wire signed [23:0] yh = yo[47:24];
 always_ff @(posedge clk) audio <= (yh > 24'sd32767) ? 16'sd32767 : (yh < -24'sd32768) ? -16'sd32768 : yh[15:0];
 

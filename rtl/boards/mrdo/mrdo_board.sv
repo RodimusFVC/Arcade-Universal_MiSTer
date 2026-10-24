@@ -67,7 +67,11 @@ module mrdo_board
     input  logic        [11:0] hs_address,
     output logic         [7:0] hs_data_out,
     input  logic         [7:0] hs_data_in,
-    input  logic               hs_write
+    input  logic               hs_write,
+
+    // RAMPOOL-2026-10-23: work RAM / fg code / fg attr live in the board RAM pool (universal_board.sv)
+    output ram_pool_pkg::pram_i_t [2:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [2:0] pr_o
 );
 
 // ------------------------------------------------------------------ clocks
@@ -166,21 +170,31 @@ dpram_dc #(.widthad_a(10)) bg_code
     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(bg_cs && wr && a[10]), .q_a(bgc_q),
     .clock_b(clk), .address_b(vbg_a), .q_b(vbgc_q)
 );
-dpram_dc #(.widthad_a(10)) fg_attr
-(
-    .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(fg_cs && wr && !a[10]), .q_a(fga_q),
-    .clock_b(clk), .address_b(vfg_a), .q_b(vfga_q)
-);
-dpram_dc #(.widthad_a(10)) fg_code
-(
-    .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(fg_cs && wr && a[10]), .q_a(fgc_q),
-    .clock_b(clk), .address_b(vfg_a), .q_b(vfgc_q)
-);
-dpram_dc #(.widthad_a(12)) work_ram
-(
-    .clock_a(clk), .address_a(a[11:0]), .data_a(dout), .wren_a(ram_cs && wr), .q_a(ram_q),
-    .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
-);
+// RAMPOOL-2026-10-23: originals below; these three RAMs are pool blocks 2 / 1 / 0 (same ports, same timing)
+// dpram_dc #(.widthad_a(10)) fg_attr
+// (
+//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(fg_cs && wr && !a[10]), .q_a(fga_q),
+//     .clock_b(clk), .address_b(vfg_a), .q_b(vfga_q)
+// );
+// dpram_dc #(.widthad_a(10)) fg_code
+// (
+//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(fg_cs && wr && a[10]), .q_a(fgc_q),
+//     .clock_b(clk), .address_b(vfg_a), .q_b(vfgc_q)
+// );
+// dpram_dc #(.widthad_a(12)) work_ram
+// (
+//     .clock_a(clk), .address_a(a[11:0]), .data_a(dout), .wren_a(ram_cs && wr), .q_a(ram_q),
+//     .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
+// );
+assign pr_i[2].a_addr = {5'd0, a[9:0]};  assign pr_i[2].a_d = dout;  assign pr_i[2].a_we = fg_cs && wr && !a[10];   // fg attr
+assign pr_i[2].b_addr = {5'd0, vfg_a};   assign pr_i[2].b_d = 8'd0;  assign pr_i[2].b_we = 1'b0;
+assign fga_q = pr_o[2].a_q;  assign vfga_q = pr_o[2].b_q;
+assign pr_i[1].a_addr = {5'd0, a[9:0]};  assign pr_i[1].a_d = dout;  assign pr_i[1].a_we = fg_cs && wr && a[10];    // fg code
+assign pr_i[1].b_addr = {5'd0, vfg_a};   assign pr_i[1].b_d = 8'd0;  assign pr_i[1].b_we = 1'b0;
+assign fgc_q = pr_o[1].a_q;  assign vfgc_q = pr_o[1].b_q;
+assign pr_i[0].a_addr = {3'd0, a[11:0]};       assign pr_i[0].a_d = dout;        assign pr_i[0].a_we = ram_cs && wr;   // work RAM
+assign pr_i[0].b_addr = {3'd0, hs_address};    assign pr_i[0].b_d = hs_data_in;  assign pr_i[0].b_we = hs_write;
+assign ram_q = pr_o[0].a_q;  assign hs_data_out = pr_o[0].b_q;
 
 // Sprite RAM: 64 entries x 4 byte lanes (code, y, attr, x)
 logic [5:0] spr_rd_e;

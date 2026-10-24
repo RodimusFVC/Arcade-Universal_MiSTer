@@ -568,6 +568,37 @@ sraider_overlay overlay
     .out_vbl    (ov_vbl)
 );
 
+/////////////////////////////  Board RAM pool  /////////////////////////////
+// RAMPOOL-2026-10-23: only one board runs at a time, so the boards' larger RAMs share three 32K x 8 true dual-port
+// blocks (two read / write ports each, one clock to q as dpram_dc). Owner by variant. Lady Bug-video boards use them
+// as the CRT Flip frame buffer; the others keep their work / video RAMs there (rtl/ram_pool_pkg.sv).
+//   block 0: flip buffer 00000-07FFF | Mr. Do! work RAM | Castle main RAM | Zero Hour / Cheeky Mouse work RAM |
+//            Cosmic video RAM | TMS plane 0
+//   block 1: flip buffer 08000-0FFFF | Mr. Do! fg code | Castle sub RAM | Zero Hour / Cheeky Mouse video RAM |
+//            Devil Zone grid | TMS plane 1
+//   block 2: flip buffer 10000-167FF | Mr. Do! fg attr | Castle video RAM | TMS plane 2
+ram_pool_pkg::pram_i_t [2:0] lb_pr_i, md_pr_i, dc_pr_i, zh_pr_i, cm_pr_i, cs_pr_i, tm_pr_i, pool_i;
+ram_pool_pkg::pram_o_t [2:0] pool_o;
+assign pool_i = mrdo ? md_pr_i : dcastle ? dc_pr_i : zhour ? zh_pr_i : cheeky ? cm_pr_i : cosmic ? cs_pr_i :
+                tms ? tm_pr_i : lb_pr_i;
+generate
+    for (ln = 0; ln < 3; ln++) begin : rpool
+        dpram_dc #(.widthad_a(15)) ram
+        (
+            .clock_a(clk), .address_a(pool_i[ln].a_addr), .data_a(pool_i[ln].a_d), .wren_a(pool_i[ln].a_we),
+            .q_a(pool_o[ln].a_q),
+            .clock_b(clk), .address_b(pool_i[ln].b_addr), .data_b(pool_i[ln].b_d), .wren_b(pool_i[ln].b_we),
+            .q_b(pool_o[ln].b_q)
+        );
+    end
+endgenerate
+// Devil Zone grid (the Cosmic board drives block 0 itself)
+assign cs_pr_i[1].a_addr = {2'd0, cs_grid_wa};  assign cs_pr_i[1].a_d = cs_grid_wd;  assign cs_pr_i[1].a_we = cs_grid && cs_grid_we;
+assign cs_pr_i[1].b_addr = {2'd0, cs_grid_ra};  assign cs_pr_i[1].b_d = 8'd0;        assign cs_pr_i[1].b_we = 1'b0;
+assign cs_pr_i[2] = '0;
+assign zh_pr_i[2] = '0;
+assign cm_pr_i[2] = '0;
+
 crt_flip_fb flip_fb
 (
     .clk     (clk),
@@ -592,12 +623,21 @@ crt_flip_fb flip_fb
     // .alt_wd  ((cs_grid && cs_grid_we) ? cs_grid_wd : ioctl_dout),
     // .alt_we  ((ioctl_wr0 && ioctl_addr[24:17] == 8'h02) || (cs_grid && cs_grid_we)),   // 0x40000-0x5FFFF / Devil Zone grid (variant 16 only)
     // .alt_ra  (idsoc ? dc_spr8_a : {4'd0, cs_grid_ra}),
-    .alt_en  (cs_grid),
-    .alt_wa  ({4'd0, cs_grid_wa}),
-    .alt_wd  (cs_grid_wd),
-    .alt_we  (cs_grid && cs_grid_we),                       // Devil Zone grid (variant 16 only)
-    .alt_ra  ({4'd0, cs_grid_ra}),
-    .alt_q   (dc_spr8_d)
+    // RAMPOOL-2026-10-23: originals (the Devil Zone grid is pool block 1 now)
+    // .alt_en  (cs_grid),
+    // .alt_wa  ({4'd0, cs_grid_wa}),
+    // .alt_wd  (cs_grid_wd),
+    // .alt_we  (cs_grid && cs_grid_we),                       // Devil Zone grid (variant 16 only)
+    // .alt_ra  ({4'd0, cs_grid_ra}),
+    // .alt_q   (dc_spr8_d)
+    .alt_en  (1'b0),
+    .alt_wa  (17'd0),
+    .alt_wd  (8'd0),
+    .alt_we  (1'b0),
+    .alt_ra  (17'd0),
+    .alt_q   (),
+    .pr_i    (lb_pr_i),
+    .pr_o    (pool_o)
 );
 
 // colour code -> RGB (see sraider_overlay.sv); star colours from MAME sraider_palette
@@ -681,7 +721,9 @@ mrdo_board mrdo_b
     .hs_address   (hs_address[11:0]),
     .hs_data_out  (md_hs_data),
     .hs_data_in   (hs_data_in),
-    .hs_write     (hs_write & mrdo)
+    .hs_write     (hs_write & mrdo),
+    .pr_i         (md_pr_i),
+    .pr_o         (pool_o)
 );
 
 /////////////////////////////  Mr. Do's Castle  /////////////////////////////
@@ -748,7 +790,9 @@ docastle_board docastle_b
     .hs_address   (hs_address[12:0]),
     .hs_data_out  (dc_hs_data),
     .hs_data_in   (hs_data_in),
-    .hs_write     (hs_write & dcastle)
+    .hs_write     (hs_write & dcastle),
+    .pr_i         (dc_pr_i),
+    .pr_o         (pool_o)
 );
 
 /////////////////////////////  Zero Hour / Red Clash  /////////////////////////////
@@ -794,7 +838,11 @@ zerohour_board zerohour_b
     .hs_address   (hs_address[10:0]),
     .hs_data_out  (zh_hs_data),
     .hs_data_in   (hs_data_in),
-    .hs_write     (hs_write & zhour)
+    .hs_write     (hs_write & zhour),
+    .pr0_i        (zh_pr_i[0]),
+    .pr1_i        (zh_pr_i[1]),
+    .pr0_o        (pool_o[0]),
+    .pr1_o        (pool_o[1])
 );
 
 /////////////////////////////  Cheeky Mouse  /////////////////////////////
@@ -839,7 +887,11 @@ cheekyms_board cheekyms_b
     .hs_address   (hs_address[9:0]),
     .hs_data_out  (cm_hs_data),
     .hs_data_in   (hs_data_in),
-    .hs_write     (hs_write & cheeky)
+    .hs_write     (hs_write & cheeky),
+    .pr0_i        (cm_pr_i[0]),
+    .pr1_i        (cm_pr_i[1]),
+    .pr0_o        (pool_o[0]),
+    .pr1_o        (pool_o[1])
 );
 
 cheekyms_sound cheekyms_snd
@@ -904,7 +956,11 @@ cosmic_board cosmic_b
     .grid_wd      (cs_grid_wd),
     .grid_we      (cs_grid_we),
     .grid_ra      (cs_grid_ra),
-    .grid_q       (dc_spr8_d)
+    // RAMPOOL-2026-10-23: original
+    // .grid_q       (dc_spr8_d)
+    .grid_q       (pool_o[1].b_q),
+    .pr0_i        (cs_pr_i[0]),
+    .pr0_o        (pool_o[0])
 );
 
 /////////////////////////////  TMS99xx boards  /////////////////////////////
@@ -941,7 +997,9 @@ tms_board tms_b
     .rom_cpu_a    (tm_cpu_a),
     .rom_cpu_d    (rom_cpu_d),
     .rom_chr_a    (tm_chr_a),
-    .rom_chr_d    (rom_char_d)
+    .rom_chr_d    (rom_char_d),
+    .pr_i         (tm_pr_i),
+    .pr_o         (pool_o)
 );
 
 /////////////////////////////  output select  /////////////////////////////

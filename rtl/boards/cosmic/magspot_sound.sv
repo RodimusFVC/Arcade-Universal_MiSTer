@@ -31,6 +31,17 @@ module magspot_sound
 (
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
+    // MULPOOL-2026-10-23: multiplier pool in cosmic_board.sv (shared by the four Cosmic sound boards)
+    output logic        [31:0]       mp_ea,    // engine: s32 x s28
+    output logic        [27:0]       mp_eb,
+    input  logic        [59:0]       mp_ep,
+    output logic [3:0]  [31:0]       mp_xa,    // s32 x s32 (unused here)
+    output logic [3:0]  [31:0]       mp_xb,
+    input  logic [3:0]  [63:0]       mp_xp,
+    output logic [9:0]  [33:0]       mp_wa,    // s34 x s17
+    output logic [9:0]  [16:0]       mp_wb,
+    input  logic [9:0]  [50:0]       mp_wp,
+
     input  logic        [15:0] snd,            // D7 latched at 4800-480F
     input  logic               coin_sw,        // coin switch, active high
     output logic signed [15:0] audio
@@ -124,15 +135,38 @@ wire signed [31:0] o_mu  = v[MU_L];
 
 // mix bus: (V - 6 V) x G / sum G (R22 100k, R33 100k, R42 220k, R66 330k, R67 75k, R77 220k, R82 120k, R87 220k,
 // R92 220k, R53 10k): weights x 2^16; switched sources (IC9) contribute only while on
-function automatic logic signed [31:0] w(input logic signed [31:0] vv, input logic [15:0] k);
-    logic signed [47:0] p, d;
+// MULPOOL-2026-10-23: originals below; the products now come from the shared pool (same bits kept, so bit-exact)
+// function automatic logic signed [31:0] w(input logic signed [31:0] vv, input logic [15:0] k);
+//     logic signed [47:0] p, d;
+//     d = {{16{vv[31]}}, vv} - {{16{V6[31]}}, V6};
+//     p = d * $signed({1'b0, k});
+//     w = p[47:16];
+// endfunction
+// wire signed [31:0] mix_raw = (bgm ? w(o_bg, 16'd4024) : 0) + w(o_fi, 16'd4024) + (um8 ? w(o_um, 16'd1831) : 0)
+//                            + (ufo ? w(o_uf, 16'd1219) : 0) + w(o_co, 16'd5352) + w(o_h1, 16'd1831) + w(o_ls, 16'd3352)
+//                            + w(o_h2, 16'd1831) + w(o_mu, 16'd3662) + (cp_run ? w(o_cp, 16'd40238) : 0);
+function automatic logic signed [33:0] w_a(input logic signed [31:0] vv);     // w() operand: V - 6 V (33 bits)
+    logic signed [47:0] d;
     d = {{16{vv[31]}}, vv} - {{16{V6[31]}}, V6};
-    p = d * $signed({1'b0, k});
-    w = p[47:16];
+    w_a = d[33:0];
 endfunction
-wire signed [31:0] mix_raw = (bgm ? w(o_bg, 16'd4024) : 0) + w(o_fi, 16'd4024) + (um8 ? w(o_um, 16'd1831) : 0)
-                           + (ufo ? w(o_uf, 16'd1219) : 0) + w(o_co, 16'd5352) + w(o_h1, 16'd1831) + w(o_ls, 16'd3352)
-                           + w(o_h2, 16'd1831) + w(o_mu, 16'd3662) + (cp_run ? w(o_cp, 16'd40238) : 0);
+function automatic logic signed [31:0] w_r(input logic [50:0] pp);            // w() result: product[47:16]
+    w_r = pp[47:16];
+endfunction
+assign mp_wa[0] = w_a(o_bg);  assign mp_wb[0] = 17'd4024;
+assign mp_wa[1] = w_a(o_fi);  assign mp_wb[1] = 17'd4024;
+assign mp_wa[2] = w_a(o_um);  assign mp_wb[2] = 17'd1831;
+assign mp_wa[3] = w_a(o_uf);  assign mp_wb[3] = 17'd1219;
+assign mp_wa[4] = w_a(o_co);  assign mp_wb[4] = 17'd5352;
+assign mp_wa[5] = w_a(o_h1);  assign mp_wb[5] = 17'd1831;
+assign mp_wa[6] = w_a(o_ls);  assign mp_wb[6] = 17'd3352;
+assign mp_wa[7] = w_a(o_h2);  assign mp_wb[7] = 17'd1831;
+assign mp_wa[8] = w_a(o_mu);  assign mp_wb[8] = 17'd3662;
+assign mp_wa[9] = w_a(o_cp);  assign mp_wb[9] = 17'd40238;
+assign mp_xa = '0;  assign mp_xb = '0;
+wire signed [31:0] mix_raw = (bgm ? w_r(mp_wp[0]) : 0) + w_r(mp_wp[1]) + (um8 ? w_r(mp_wp[2]) : 0)
+                           + (ufo ? w_r(mp_wp[3]) : 0) + w_r(mp_wp[4]) + w_r(mp_wp[5]) + w_r(mp_wp[6])
+                           + w_r(mp_wp[7]) + w_r(mp_wp[8]) + (cp_run ? w_r(mp_wp[9]) : 0);
 wire signed [31:0] mix = enable ? mix_raw : 32'sd0;                                         // Q2 shorts the bus
 
 `define AST(CAP, Q, RST, ACH, ADIS, TGT) begin x = ((RST) && (Q)) ? (TGT) - v[CAP] : -v[CAP]; a = ((RST) && (Q)) ? ACH : ADIS; end
@@ -174,9 +208,13 @@ logic        [26:0] p_a;
 logic        [4:0]  p_n = 5'd31, w_n = 5'd31;
 logic signed [58:0] w_p;
 wire  signed [31:0] w_sum = v[w_n] + {{5{w_p[58]}}, w_p[58:32]};
+assign mp_ea = p_x;
+assign mp_eb = {1'b0, p_a};
 always_ff @(posedge clk) begin
     p_x <= x; p_a <= a; p_n <= nd;
-    w_p <= p_x * $signed({1'b0, p_a});
+    // MULPOOL-2026-10-23: original
+    // w_p <= p_x * $signed({1'b0, p_a});
+    w_p <= mp_ep[58:0];
     w_n <= p_n;
     if (reset) begin
         for (int i = 0; i < 32; i++) v[i] <= 32'sd0;
@@ -228,7 +266,12 @@ end
 
 // ------------------------------------------------------------------ output: bus x 9000 per volt (coin pattern just under full scale)
 wire signed [31:0] y  = mix - v[HPF];
-wire signed [47:0] yo = y * 16'sd9000;
+// MULPOOL-2026-10-23: original
+// wire signed [47:0] yo = y * 16'sd9000;
+// x 9000 = 8192 + 512 + 256 + 32 + 8: shifts and adds, the same 48 bits, no multiplier (so the mix -> output
+// path never crosses a second pooled multiplier)
+wire signed [47:0] y48 = {{16{y[31]}}, y};
+wire signed [47:0] yo = (y48 <<< 13) + (y48 <<< 9) + (y48 <<< 8) + (y48 <<< 5) + (y48 <<< 3);
 wire signed [23:0] yh = yo[47:24];                                   // signed copy before comparing
 always_ff @(posedge clk) audio <= (yh > 24'sd32767) ? 16'sd32767 : (yh < -24'sd32768) ? -16'sd32768 : yh[15:0];
 
