@@ -4,7 +4,13 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/chip_pool_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_pool_pkg.sv
 set_global_assignment -name SYSTEMVERILOG_FILE Arcade-Universal.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/universal_board.sv
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/ddr_rom.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_rom/ddr_rom.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_rom/ddr_arb.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/art_xclk.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/artwork.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/art_resample.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/png_decode.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/art/inflate.sv
 
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/ladybug/ladybug_machine.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/ladybug/ladybug_clk.sv
@@ -42,7 +48,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/cosmic/nomnlnd_sound.s
 set_global_assignment -name VHDL_FILE rtl/boards/tms/tms9900.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/tms/tms_board.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/tms/cosmicg_sound.sv
-set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/msm5205.sv
+# JT5205-2026-10-25: was set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/msm5205.sv
+set_global_assignment -name QIP_FILE rtl/sound/jt5205/jt5205.qip
 set_global_assignment -name VHDL_FILE rtl/video/mc6845.vhd
 
 set_global_assignment -name QIP_FILE rtl/cpu/T80/T80.qip
@@ -50,5 +57,8 @@ set_global_assignment -name QIP_FILE rtl/sound/jt89/syn/quartus/jt89_verilog.qip
 
 set_global_assignment -name VERILOG_FILE rtl/mister_custom/pause.v
 set_global_assignment -name VERILOG_FILE rtl/mister_custom/hiscore.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/mister_custom/controllers.sv
 
-set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd
+# DPRAMSV-2026-10-25: VHDL dpram_dc replaced by the SystemVerilog one (same ports/generics + byteena); original:
+# set_global_assignment -name VHDL_FILE rtl/ram_rom/dpram_dc.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ram_rom/dpram_dc.sv

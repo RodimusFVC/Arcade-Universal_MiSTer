@@ -304,9 +304,11 @@ wire signed [12:0] snd_sum = sn_out[0] + sn_out[1] + sn_out[2] + sn_out[3];
 // ------------------------------------------------------------------ Indoor Soccer ADPCM (MAME idsoccer_state)
 // 384 kHz / 48 = 8 kHz VCK = 19.656 MHz / 2457. Control write: D7 falling = stop, D6 falling = start the
 // 16K-byte block (D1-D0); status read: D7 = playing. Each VCK: next nibble (high first) or stop at the block end.
-logic [11:0] vck_div = 12'd0;
-wire         vck = (vck_div == 12'd2456);
-always_ff @(posedge clk) vck_div <= vck ? 12'd0 : vck_div + 12'd1;
+// JT5205-2026-10-25: VCK now comes from jt5205 (its irq output, chip below). Original divider:
+// logic [11:0] vck_div = 12'd0;
+// wire         vck = (vck_div == 12'd2456);
+// always_ff @(posedge clk) vck_div <= vck ? 12'd0 : vck_div + 12'd1;
+wire         vck;
 
 logic [16:0] adp_pos = 17'd0, adp_end = 17'd0;              // nibble address (64K bytes)
 logic        adp_idle = 1'b1, adp_rst = 1'b1, adp_wr_d = 1'b0;
@@ -318,6 +320,14 @@ wire         adp_wr = m_adp && !m_wr_n;
 logic        adp_vpend = 1'b0;
 wire         adp_go   = (vck || adp_vpend) && !pause;
 wire         adp_need = !(adp_pos >= adp_end || adp_idle);
+
+// JT5205-2026-10-25: 384 kHz clock enable = 48 / 2457 of 19.656 MHz (exactly 8 kHz VCK at S = /48). Chip time stops
+// while paused or while a VCK waits for DDR3, as the old VCK step did.
+logic [11:0] msm_acc   = 12'd0;
+wire  [11:0] msm_acc_n = msm_acc + 12'd48;
+wire         msm_run   = !pause && !adp_vpend;
+wire         msm_cen   = msm_run && msm_acc_n >= 12'd2457;
+always_ff @(posedge clk) if (msm_run) msm_acc <= msm_cen ? msm_acc_n - 12'd2457 : msm_acc_n;
 
 assign rom_adpcm_a = adp_pos[16:1];
 
@@ -366,10 +376,19 @@ always_ff @(posedge clk) begin
     end
 end
 
+// JT5205-2026-10-25: our msm5205.sv replaced by jt5205 (Jose Tejada); adp_step is unused while it is in. Original:
+// logic signed [11:0] adp_sig;
+// msm5205 adpcm
+// (
+//     .clk(clk), .step(adp_step), .rst(adp_rst), .data(adp_nib), .signal(adp_sig)
+// );
+// S = 2 (/48). jt5205 latches adp_nib on its irq (= vck) and outputs it decoded at the next one: one sample later
+// than MAME, which decodes the nibble written in the VCK callback. Full 12 bits out, rest level -2.
 logic signed [11:0] adp_sig;
-msm5205 adpcm
+jt5205 adpcm
 (
-    .clk(clk), .step(adp_step), .rst(adp_rst), .data(adp_nib), .signal(adp_sig)
+    .rst(adp_rst), .clk(clk), .cen(msm_cen), .sel(2'd2), .din(adp_nib),
+    .sound(adp_sig), .sample(), .irq(vck), .vclk_o()
 );
 
 // mix: 4x SN76489A at 0.25, MSM5205 at 0.40 (MAME routes)

@@ -132,6 +132,7 @@ signal h_display_early	:	std_logic;
 signal hs				:	std_logic;
 signal v_display		:	std_logic;
 signal v_display_early	:	std_logic;
+signal in_adj_s		:	std_logic;	-- vertical total adjust lines in progress (display stays off)
 signal vs				:	std_logic;
 signal odd_field		:	std_logic;
 signal ma_i				:	unsigned(13 downto 0);
@@ -304,6 +305,7 @@ begin
 			ma_i <= (others => '0');
 
 			in_adj := '0';
+			in_adj_s <= '0';
 
 		elsif rising_edge(CLOCK) then
 			if CLKEN = '1' then
@@ -367,6 +369,7 @@ begin
 
 						-- Reset the in extra time flag
 						in_adj := '0';
+						in_adj_s <= '0';
 
 					elsif in_adj = '0' and line_counter = max_scan_line then
 						-- Scan line counter increments, wrapping at max_scan_line_addr
@@ -380,6 +383,7 @@ begin
 						-- in_adj accordingly
 						if row_counter = r04_v_total and need_adj = '1' then
 							in_adj := '1';
+							in_adj_s <= '1';
 						end if;
 					else
 						-- Next scan line.	Count in twos in interlaced sync+video mode
@@ -425,7 +429,10 @@ begin
 	end process;
 
 	h_display_early <= '1' when h_counter	< r01_h_displayed else '0';
-	v_display_early <= '1' when row_counter < r06_v_displayed else '0';
+	-- CRTCADJ-2026-10-24: original below. The row counter wraps to 0 entering the adjust lines when R4 = 127
+	-- (Cosmic Guerilla: R4 127, R5 7), so the display came back on for them; a real 6845 keeps it off until the frame restarts.
+	-- v_display_early <= '1' when row_counter < r06_v_displayed else '0';
+	v_display_early <= '1' when row_counter < r06_v_displayed and in_adj_s = '0' else '0';
 
 	-- Video timing and sync counters
 	process(CLOCK,nRESET)

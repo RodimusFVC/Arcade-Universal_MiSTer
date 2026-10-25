@@ -465,7 +465,9 @@ always_ff @(posedge clk) begin
 end
 assign ga_vbl = vcnt >= 9'd240;
 wire [8:0] g_hs0 = 9'd280 + {{5{h_adj[3]}}, h_adj};
-wire [8:0] g_vs0 = 9'd244 + {{5{v_adj[3]}}, v_adj};
+// HVPOS-2026-10-23: original below; at 244 the -5..-8 settings put VSYNC on visible lines (vblank = 240-261)
+// wire [8:0] g_vs0 = 9'd244 + {{5{v_adj[3]}}, v_adj};
+wire [8:0] g_vs0 = 9'd250 + {{5{v_adj[3]}}, v_adj};                  // 242-260 over -8..+7: porches >= 2 lines
 
 logic [2:0] g_bits;
 logic [3:0] g1_blk;
@@ -484,30 +486,49 @@ endcase
 
 logic c_vis = 1'b0, c_hs = 1'b0, c_vs = 1'b0, c_vbl = 1'b1;
 
-// cosmicg CRT H/V position: the CRTC's own sync re-timed from the blanking (Castle board pattern)
-logic       hb_q = 1'b1, vb_q = 1'b1, chs_q = 1'b0, cvs_q = 1'b0;
+// HVPOS-2026-10-23: original block below. Display-enable stays low through the whole vblank, so counting from the
+// blanking froze: no HSYNC for ~64 lines, VSYNC the whole vblank, V Position dead, and HSYNC 1 px into the blank.
+// // cosmicg CRT H/V position: the CRTC's own sync re-timed from the blanking (Castle board pattern)
+// logic       hb_q = 1'b1, vb_q = 1'b1, chs_q = 1'b0, cvs_q = 1'b0;
+// logic [8:0] hc = 9'd0, ln = 9'd0;
+// logic [8:0] hs_pos = 9'd0, hs_len = 9'd16, vs_pos = 9'd0, vs_len = 9'd3;
+// logic [8:0] hs_t = 9'd0, vs_t = 9'd0;
+// wire        hbl_now = !c_vis;
+// wire  [8:0] hc_cur  = (hbl_now && !hb_q) ? 9'd0 : hc + 9'd1;
+// wire  [8:0] ln_cur  = (c_vbl && !vb_q) ? 9'd0 : (hbl_now && !hb_q) ? ln + 9'd1 : ln;
+// wire  [8:0] hs_beg  = hs_pos + {{5{h_adj[3]}}, h_adj};
+// wire  [8:0] vs_beg  = vs_pos + {{5{v_adj[3]}}, v_adj};
+// always_ff @(posedge clk) begin
+//     if (ce_cg) begin
+//         hb_q <= hbl_now; vb_q <= c_vbl; chs_q <= c_hs; cvs_q <= c_vs;
+//         hc <= hc_cur; ln <= ln_cur;
+//         if (c_hs && !chs_q) begin hs_pos <= hc_cur; hs_t <= 9'd0; end
+//         else if (c_hs) hs_t <= hs_t + 9'd1;
+//         if (!c_hs && chs_q) hs_len <= hs_t + 9'd1;
+//         if (c_vs && !cvs_q) begin vs_pos <= ln_cur; vs_t <= 9'd0; end
+//         if (c_vs && (hbl_now && !hb_q)) vs_t <= vs_t + 9'd1;
+//         if (!c_vs && cvs_q) vs_len <= vs_t + 9'd1;
+//     end
+// end
+// wire cg_hs = (hc_cur >= hs_beg) && (hc_cur < hs_beg + hs_len);
+// wire cg_vs = (ln_cur >= vs_beg) && (ln_cur < vs_beg + vs_len);
+// cosmicg CRT H/V position: pixels and lines counted from the CRTC's HSYNC (it runs on every line, vblank included),
+// lines restarted at the CRTC's vblank. HSYNC 24 px (4.9 us) centred in the 56 px blank (CRTC HSYNC = blank + 1 px);
+// VSYNC 3 lines from line 24 of the 64-line vblank. -8..+7 keeps both inside their blanking with porches.
+logic       chs_q = 1'b0, cvb_q = 1'b1;
 logic [8:0] hc = 9'd0, ln = 9'd0;
-logic [8:0] hs_pos = 9'd0, hs_len = 9'd16, vs_pos = 9'd0, vs_len = 9'd3;
-logic [8:0] hs_t = 9'd0, vs_t = 9'd0;
-wire        hbl_now = !c_vis;
-wire  [8:0] hc_cur  = (hbl_now && !hb_q) ? 9'd0 : hc + 9'd1;
-wire  [8:0] ln_cur  = (c_vbl && !vb_q) ? 9'd0 : (hbl_now && !hb_q) ? ln + 9'd1 : ln;
-wire  [8:0] hs_beg  = hs_pos + {{5{h_adj[3]}}, h_adj};
-wire  [8:0] vs_beg  = vs_pos + {{5{v_adj[3]}}, v_adj};
+wire  [8:0] hc_cur  = (c_hs && !chs_q) ? 9'd0 : hc + 9'd1;
+wire  [8:0] ln_cur  = (c_vbl && !cvb_q) ? 9'd0 : (c_hs && !chs_q) ? ln + 9'd1 : ln;
+wire  [8:0] hs_beg  = 9'd15 + {{5{h_adj[3]}}, h_adj};
+wire  [8:0] vs_beg  = 9'd24 + {{5{v_adj[3]}}, v_adj};
 always_ff @(posedge clk) begin
     if (ce_cg) begin
-        hb_q <= hbl_now; vb_q <= c_vbl; chs_q <= c_hs; cvs_q <= c_vs;
+        chs_q <= c_hs; cvb_q <= c_vbl;
         hc <= hc_cur; ln <= ln_cur;
-        if (c_hs && !chs_q) begin hs_pos <= hc_cur; hs_t <= 9'd0; end
-        else if (c_hs) hs_t <= hs_t + 9'd1;
-        if (!c_hs && chs_q) hs_len <= hs_t + 9'd1;
-        if (c_vs && !cvs_q) begin vs_pos <= ln_cur; vs_t <= 9'd0; end
-        if (c_vs && (hbl_now && !hb_q)) vs_t <= vs_t + 9'd1;
-        if (!c_vs && cvs_q) vs_len <= vs_t + 9'd1;
     end
 end
-wire cg_hs = (hc_cur >= hs_beg) && (hc_cur < hs_beg + hs_len);
-wire cg_vs = (ln_cur >= vs_beg) && (ln_cur < vs_beg + vs_len);
+wire cg_hs = (hc_cur >= hs_beg) && (hc_cur < hs_beg + 9'd24);
+wire cg_vs = (ln_cur >= vs_beg) && (ln_cur < vs_beg + 9'd3);
 
 // ------------------------------------------------------------------ output
 always_ff @(posedge clk) begin
