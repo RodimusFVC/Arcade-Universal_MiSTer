@@ -390,13 +390,16 @@ typedef struct packed {
     logic        ce_snd;
 } tms36xx_o_t;
 
-// Discrete sound engine (rtl/sound/dsnd_engine.sv); the program download (MRA index 5) is wired in the dispatcher
+// Discrete sound engine (rtl/sound/dsnd_engine.sv); the program download (MRA index 5) is wired in the dispatcher.
+// A mono board reads out only.
 typedef struct packed {
     logic [63:0] src;                   // sources 7..0, one byte each
 } dsnd_i_t;
 
 typedef struct packed {
     logic [15:0] out;                   // signed
+    logic [15:0] out_r;                 // signed
+    logic        sample;                // one clk at the start of each sample period
 } dsnd_o_t;
 
 // VLM5030 (jotego jtcores modules/vlm5030: vlm5030_gl, Arnim Laeuger's gate-level VHDL; i_tst1 0, i_vref / i_tst3
@@ -652,18 +655,6 @@ typedef struct packed {
     logic  [7:0] iob_out;
     logic  [9:0] sound;                 // jt49 internal A+B+C mix (registered per accumulator cycle)
 } ayio_o_t;
-
-// dsndlr: Exidy's dsnd_engine (stereo out / out_r + sample strobe). Phoenix's dsnd copy is mono (dsnd_i_t / dsnd_o_t
-// = src / out): same src, different outputs, so a different type until the two engines are merged.
-typedef struct packed {
-    logic [63:0] src;                   // sources 7..0, one byte each
-} dsndlr_i_t;
-
-typedef struct packed {
-    logic [15:0] out;                   // signed
-    logic [15:0] out_r;                 // signed
-    logic        sample;                // one clk at the start of each sample period
-} dsndlr_o_t;
 
 // Exidy's own chip models (rtl/sound/). rst is on every bus: each board drives its own reset (sound board snd_rst,
 // Car Polo reset | ~cp, Star Fire reset | ~sf), so a pooled chip behaves exactly as the board's private copy did.

@@ -3,7 +3,7 @@
 1bfbea2c7ecfb2cc6d002b1f6ff748b4  rtl/art/art_xclk.sv
 eed9a9af5fe357a650f885bb93d5d08d  rtl/art/inflate.sv
 d481b7c71fa34114352ddab0daf83b8d  rtl/art/png_decode.sv
-1cb15c19789b9ff5b9fd52983fcd679a  rtl/chip_pool_pkg.sv
+191fe0e376b9069b1db9d0962a3d0b15  rtl/chip_pool_pkg.sv
 ba297903d3d8ab86dc13fd0de47f48f2  rtl/mister_custom/controllers.sv
 bab2fb9019c45977cd047d2cd94bd7ea  rtl/mister_custom/hiscore.v
 895850debf17ba33e5625674ed1c6141  rtl/mister_custom/pause.v
