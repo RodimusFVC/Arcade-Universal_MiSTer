@@ -879,4 +879,242 @@ typedef struct packed {
     logic [15:0] right;                 // signed
 } jt51_o_t;
 
+// POKEY (pokey_glue around pokey_cx; enable_179 1, keyboard scan / SIO inactive). POT_CMP stays an instance parameter,
+// so a slot serves only boards with the same value. reset_n is on the bus: each board resets it with its CPU
+typedef struct packed {
+    logic        reset_n;
+    logic        ce;
+    logic        wr_en;
+    logic  [3:0] addr;
+    logic  [7:0] din;
+    logic  [7:0] pot_in;
+} pokey_i_t;
+
+typedef struct packed {
+    logic  [7:0] dout;
+    logic  [3:0] ch0;                   // channel volumes while the channel output is high
+    logic  [3:0] ch1;
+    logic  [3:0] ch2;
+    logic  [3:0] ch3;
+    logic  [7:0] pot_count;
+} pokey_o_t;
+
+// AY-3-8910 (jt49_bus, sel = 1; inputs as ay_i_t) with rst_n on the bus: a board resets it with its CPU. Outputs: ay_o_t
+typedef struct packed {
+    logic        rst_n;
+    logic        ce;
+    logic        bdir;
+    logic        bc1;
+    logic  [7:0] din;
+    logic  [7:0] ioa_in;
+    logic  [7:0] iob_in;
+} ayr_i_t;
+
+// 93C46 serial EEPROM, 128 x 8 (eeprom_93c46). ext_* = the NVRAM save / load port (CPU held or paused)
+typedef struct packed {
+    logic        reset;
+    logic        clear;
+    logic        wr;
+    logic        di;
+    logic        sk;
+    logic        cs;
+    logic        ext_sel;
+    logic  [6:0] ext_addr;
+    logic  [7:0] ext_din;
+    logic        ext_we;
+} eeprom93c46_i_t;
+
+typedef struct packed {
+    logic        dout;
+    logic  [7:0] ext_q;
+} eeprom93c46_o_t;
+
+// ALPHA-8201 / 8302 protection MCU (alpha8201: HMCS40 core + 1K shared RAM). ext_* = the main CPU's side of the shared
+// RAM, mcu_addr / mcu_data = its program ROM
+typedef struct packed {
+    logic        reset;
+    logic        pause;
+    logic        mcu_start;
+    logic        bus_dir;
+    logic  [9:0] ext_addr;
+    logic  [7:0] ext_din;
+    logic        ext_we;
+    logic  [7:0] mcu_data;
+} alpha8201_i_t;
+
+typedef struct packed {
+    logic  [7:0] ext_dout;
+    logic [12:0] mcu_addr;
+} alpha8201_o_t;
+
+// TMS5110 speech synthesizer (tms5110). ctl / pdc / data_bit come from the board's VSM / PROM controller; m0 / busy go
+// back to it. ce_sample = one 8 kHz output step
+typedef struct packed {
+    logic        reset;
+    logic        ce_sample;
+    logic  [3:0] ctl;
+    logic        pdc;
+    logic        data_bit;
+} tms5110_i_t;
+
+typedef struct packed {
+    logic        m0;
+    logic        busy;
+    logic        talk_status;
+    logic signed [15:0] sample;
+} tms5110_o_t;
+
+// Namco 06XX bus controller (namco_06xx; BASE_DIV per instance): the CPU's 7000 / 7100 data / control port and the
+// four custom-chip slots (select pulse, R/W to chip 0, write strobes)
+typedef struct packed {
+    logic        reset;
+    logic        irq_on_access;
+    logic  [7:0] cpu_dout;
+    logic        data_wr;
+    logic        data_rd;
+    logic        ctrl_wr;
+    logic        ctrl_rd;
+    logic  [7:0] chip0_din;
+    logic  [7:0] chip1_din;
+    logic  [7:0] chip2_din;
+    logic  [7:0] chip3_din;
+} namco_06xx_i_t;
+
+typedef struct packed {
+    logic  [7:0] cpu_din;
+    logic        nmi_n;
+    logic  [3:0] chipsel;
+    logic        rw0;
+    logic  [7:0] chip_dout;
+    logic  [3:0] chip_wr;
+} namco_06xx_o_t;
+
+// Namco 50XX / 51XX / 52XX / 53XX / 54XX customs (namco_5Nxx: an MB88 on the mb88_* pool + its mask ROM, loaded in
+// the dispatcher). ena = the MCU clock enable; the 06XX side is chip_sel / rw_in / wr_en / wr_data
+typedef struct packed {
+    logic        ena;
+    logic        reset_n;
+    logic        chip_sel;
+    logic        rw_in;
+    logic        wr_en;
+    logic  [7:0] wr_data;
+} namco_50xx_i_t;
+
+typedef struct packed {
+    logic  [7:0] data_out;
+} namco_50xx_o_t;
+
+typedef struct packed {
+    logic        ena;
+    logic        reset_n;
+    logic        chip_sel;
+    logic        rw_in;
+    logic        wr_en;
+    logic  [7:0] wr_data;
+    logic  [7:0] in_a;          // input<0> = in_a[3:0], input<1> = in_a[7:4]
+    logic  [7:0] in_b;          // input<2> = in_b[3:0], input<3> = in_b[7:4]
+    logic        vblank;
+} namco_51xx_i_t;
+
+typedef struct packed {
+    logic  [7:0] data_out;
+    logic  [3:0] p_port_out;
+} namco_51xx_o_t;
+
+typedef struct packed {
+    logic        ena;
+    logic        reset_n;
+    logic        chip_sel;
+    logic        wr_en;
+    logic  [7:0] wr_data;
+    logic        si;
+    logic        tc_n;
+    logic  [7:0] sample_data;   // sample ROM data at sample_addr
+} namco_52xx_i_t;
+
+typedef struct packed {
+    logic  [3:0] p_out;
+    logic [15:0] sample_addr;
+} namco_52xx_o_t;
+
+typedef struct packed {
+    logic        ena;
+    logic        reset_n;
+    logic        chip_sel;
+    logic  [3:0] k_in;
+    logic  [7:0] in_a;
+    logic  [7:0] in_b;
+} namco_53xx_i_t;
+
+typedef struct packed {
+    logic  [7:0] data_out;
+} namco_53xx_o_t;
+
+typedef struct packed {
+    logic        ena;
+    logic        reset_n;
+    logic        chip_sel;
+    logic        wr_en;
+    logic  [7:0] wr_data;
+} namco_54xx_i_t;
+
+typedef struct packed {
+    logic  [3:0] discrete_o0;
+    logic  [3:0] discrete_o1;
+    logic  [3:0] discrete_r1;
+} namco_54xx_o_t;
+
+// Namco 3-voice WSG (namco_wsg3; waveform PROM loaded in the dispatcher)
+typedef struct packed {
+    logic        reset;
+    logic  [4:0] reg_addr;
+    logic  [3:0] reg_data;
+    logic        reg_wr;
+} namco_wsg3_i_t;
+
+typedef struct packed {
+    logic [15:0] audio;         // signed
+} namco_wsg3_o_t;
+
+// Namco 52XX voice filter chain (namco_52xx_snd) and 54XX noise / discrete mixer (namco_54xx_snd; BOARD per instance)
+typedef struct packed {
+    logic        reset;
+    logic  [3:0] p_data;
+} namco_52xx_snd_i_t;
+
+typedef struct packed {
+    logic [31:0] volts;         // signed, 2^22 per volt
+} namco_52xx_snd_o_t;
+
+typedef struct packed {
+    logic        reset;
+    logic  [3:0] o0_data;
+    logic  [3:0] o1_data;
+    logic  [3:0] r1_data;
+    logic        bosco;
+    logic [31:0] ext_volts;     // signed
+} namco_54xx_snd_i_t;
+
+typedef struct packed {
+    logic [15:0] audio;         // signed
+} namco_54xx_snd_o_t;
+
+// Namco 05XX starfield (namco_05xx)
+typedef struct packed {
+    logic        ce6;
+    logic        line_step;
+    logic  [8:0] vcnt;
+    logic        win;
+    logic  [2:0] speed_x;
+    logic  [2:0] speed_y;
+    logic  [1:0] set_a;
+    logic  [1:0] set_b;
+    logic        enable;
+} namco_05xx_i_t;
+
+typedef struct packed {
+    logic        star;
+    logic  [5:0] color;         // BBGGRR
+} namco_05xx_o_t;
+
 endpackage

@@ -25,7 +25,7 @@
 
 module cosmic_board
 (
-    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_board.sv)
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_dispatcher.sv)
     input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
@@ -75,8 +75,8 @@ module cosmic_board
     output logic        [12:0] grid_ra,
     input  logic         [7:0] grid_q,
 
-    // RAMPOOL-2026-10-23: video RAM lives in board RAM pool block 0 (universal_board.sv; the grid is block 1)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
+    // RAMPOOL-2026-10-23: video RAM lives in board RAM pool block 0 (universal_dispatcher.sv; the grid is block 1)
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
     // Originals: output pram_i_t pr0_i / input pram_o_t pr0_o (now pr_i[0], aliased below)
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o,
@@ -155,7 +155,7 @@ logic        int_n = 1'b1;
 logic  [7:0] int_vec = 8'hFF;
 wire         nmi_n = k_panic ? 1'b1 : (k_cosa || k_nml) ? ~coin[0] : ~coin[1];
 
-// the shared T80pa in rtl/universal_board.sv
+// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = ~reset;
 // HSCORE-2026-10-23: originals below. The hiscore system borrows the video RAM's CPU port while the CPU is paused;
 // pause_x holds the CPU two clocks longer so its first read after a pause sees its own address again.

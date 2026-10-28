@@ -22,7 +22,7 @@
 
 module mrdo_board
 (
-    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_board.sv)
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_dispatcher.sv)
     input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
     output chip_pool_pkg::sn76489_i_t [1:0] sn76489_i,  // shared SN76489s 0-1
     input  chip_pool_pkg::sn76489_o_t [1:0] sn76489_o,
@@ -69,8 +69,8 @@ module mrdo_board
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
 
-    // RAMPOOL-2026-10-23: work RAM / fg code / fg attr live in the board RAM pool (universal_board.sv)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
+    // RAMPOOL-2026-10-23: work RAM / fg code / fg attr live in the board RAM pool (universal_dispatcher.sv)
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
@@ -119,7 +119,7 @@ logic [15:0] a;
 logic  [7:0] din, dout;
 logic        int_n = 1'b1, vbl_d = 1'b0;
 
-// the shared T80pa in rtl/universal_board.sv
+// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = ~reset;
 assign z80pa_0_i.cen_p   = cen_p & ~pause;
 assign z80pa_0_i.cen_n   = cen_n & ~pause;
@@ -301,7 +301,7 @@ end
 logic signed [10:0] sn1_out, sn2_out;
 wire sn_cen = cen_p & ~pause;
 
-// sn1 / sn2 = the shared SN76489s 0 / 1 in rtl/universal_board.sv
+// sn1 / sn2 = the shared SN76489s 0 / 1 in rtl/universal_dispatcher.sv
 assign sn76489_i[0].rst  = reset;
 assign sn76489_i[0].ce   = sn_cen;
 assign sn76489_i[0].wr_n = ~(io98_cs && wr && a[1:0] == 2'd1);

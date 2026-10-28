@@ -35,7 +35,7 @@ module crt_flip_fb
     input  logic [16:0] alt_ra,
     output logic  [7:0] alt_q,
 
-    // RAMPOOL-2026-10-23: the frame buffer is board RAM pool blocks 0-2 (universal_board.sv; idle for other boards,
+    // RAMPOOL-2026-10-23: the frame buffer is board RAM pool blocks 0-2 (universal_dispatcher.sv; idle for other boards,
     // which keep their own RAMs there). Address [16:15] picks the block; the alt port is no longer used.
     output ram_pool_pkg::pram_i_t [2:0] pr_i,
     input  ram_pool_pkg::pram_o_t [2:0] pr_o

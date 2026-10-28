@@ -16,7 +16,7 @@
 
 module ladybug_machine
 (
-    output chip_pool_pkg::z80pa_i_t          z80pa_0_i,   // shared main Z80 (rtl/universal_board.sv)
+    output chip_pool_pkg::z80pa_i_t          z80pa_0_i,   // shared main Z80 (rtl/universal_dispatcher.sv)
     input  chip_pool_pkg::z80pa_o_t          z80pa_0_o,
     output chip_pool_pkg::z80pa_i_t          z80pa_1_i,   // shared Z80: 8203 sub
     input  chip_pool_pkg::z80pa_o_t          z80pa_1_o,
@@ -81,7 +81,7 @@ module ladybug_machine
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
 
-    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
     output ram_pool_pkg::pram_i_t [8:0] pr_i,
     input  ram_pool_pkg::pram_o_t [8:0] pr_o
 );

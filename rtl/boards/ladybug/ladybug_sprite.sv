@@ -78,7 +78,7 @@ module ladybug_sprite (
   output logic [11:0] rom_sprite_a_o,
   input  logic [15:0] rom_sprite_d_i,
 
-  // ROMPOOL-2026-10-27: the F4 / C4 PROMs are dispatcher ROM blocks (universal_board.sv); originals:
+  // ROMPOOL-2026-10-27: the F4 / C4 PROMs are dispatcher ROM blocks (universal_dispatcher.sv); originals:
   // // PROM download interface (replaces dn_* ports) ----------------------------
   // input  logic        prom_f4_wr_i,
   // input  logic        prom_c4_wr_i,
@@ -89,7 +89,7 @@ module ladybug_sprite (
   output logic [4:0]  prom_c4_a_o,
   input  logic [7:0]  prom_c4_d_i,
 
-  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
   output ram_pool_pkg::pram_i_t [4:0] pr_i,
   input  ram_pool_pkg::pram_o_t [4:0] pr_o
 );

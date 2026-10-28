@@ -18,7 +18,7 @@
 
 module cheekyms_board
 (
-    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_board.sv)
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_dispatcher.sv)
     input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
@@ -59,8 +59,8 @@ module cheekyms_board
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
 
-    // RAMPOOL-2026-10-23: work RAM / video RAM live in board RAM pool blocks 0 / 1 (universal_board.sv)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
+    // RAMPOOL-2026-10-23: work RAM / video RAM live in board RAM pool blocks 0 / 1 (universal_dispatcher.sv)
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
     // Originals: output pram_i_t pr0_i, pr1_i / input pram_o_t pr0_o, pr1_o (now pr_i[0] / pr_i[1], aliased below)
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o
@@ -121,7 +121,7 @@ logic        int_n = 1'b1;
 logic        vbl_d = 1'b0;
 logic  [7:0] p80 = 8'd0;
 
-// the shared T80pa in rtl/universal_board.sv
+// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = ~reset;
 assign z80pa_0_i.cen_p   = cen_p & ~pause;
 assign z80pa_0_i.cen_n   = cen_n & ~pause;

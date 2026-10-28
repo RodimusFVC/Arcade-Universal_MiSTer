@@ -109,7 +109,7 @@ module ladybug_video_unit (
   input  logic [7:0]  hs_data_in,
   input  logic        hs_write,
 
-  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
   output ram_pool_pkg::pram_i_t [6:0] pr_i,
   input  ram_pool_pkg::pram_o_t [6:0] pr_o
 );

@@ -33,13 +33,13 @@
 
 module docastle_board
 (
-    output chip_pool_pkg::z80pa_i_t         z80pa_0_i,   // shared Z80s (rtl/universal_board.sv): main
+    output chip_pool_pkg::z80pa_i_t         z80pa_0_i,   // shared Z80s (rtl/universal_dispatcher.sv): main
     input  chip_pool_pkg::z80pa_o_t         z80pa_0_o,
     output chip_pool_pkg::z80pa_i_t         z80pa_1_i,   // sub
     input  chip_pool_pkg::z80pa_o_t         z80pa_1_o,
     output chip_pool_pkg::sn76489_i_t [3:0] sn76489_i,   // shared SN76489s 0-3
     input  chip_pool_pkg::sn76489_o_t [3:0] sn76489_o,
-    // CHIPPOOL-2026-10-27: the MSM5205 (jt5205) and the CRTC are pool slots jt5205_0 / mc6845_0 in universal_board.sv
+    // CHIPPOOL-2026-10-27: the MSM5205 (jt5205) and the CRTC are pool slots jt5205_0 / mc6845_0 in universal_dispatcher.sv
     output chip_pool_pkg::jt5205_i_t        jt5205_0_i,
     input  chip_pool_pkg::jt5205_o_t        jt5205_0_o,
     output chip_pool_pkg::mc6845_i_t        mc6845_0_i,
@@ -105,8 +105,8 @@ module docastle_board
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
 
-    // RAMPOOL-2026-10-23: main RAM / sub RAM / video RAM live in the board RAM pool (universal_board.sv)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
+    // RAMPOOL-2026-10-23: main RAM / sub RAM / video RAM live in the board RAM pool (universal_dispatcher.sv)
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
@@ -141,7 +141,7 @@ logic [15:0] m_a;
 logic  [7:0] m_di, m_do;
 logic        m_wait_n, m_int_n;
 
-// the shared T80pa z80pa_0 in rtl/universal_board.sv
+// the shared T80pa z80pa_0 in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = ~reset;
 assign z80pa_0_i.cen_p   = cpu_p;
 assign z80pa_0_i.cen_n   = cpu_n;
@@ -198,7 +198,7 @@ logic  [7:0] s_di, s_do;
 logic        s_int_n = 1'b1, s_nmi_n = 1'b1;
 logic  [3:0] sn_ready;
 
-// the shared T80pa z80pa_1 in rtl/universal_board.sv
+// the shared T80pa z80pa_1 in rtl/universal_dispatcher.sv
 assign z80pa_1_i.reset_n = ~reset;
 assign z80pa_1_i.cen_p   = cpu_p;
 assign z80pa_1_i.cen_n   = cpu_n;
@@ -298,7 +298,7 @@ logic signed [10:0] sn_out[4];
 genvar i;
 generate
     for (i = 0; i < 4; i++) begin : sn
-        // the shared SN76489s in rtl/universal_board.sv
+        // the shared SN76489s in rtl/universal_dispatcher.sv
         assign sn76489_i[i].rst  = reset;
         assign sn76489_i[i].ce   = cpu_p;
         assign sn76489_i[i].wr_n = s_wr_n;
@@ -393,7 +393,7 @@ end
 // );
 // S = 2 (/48). jt5205 latches adp_nib on its irq (= vck) and outputs it decoded at the next one: one sample later
 // than MAME, which decodes the nibble written in the VCK callback. Full 12 bits out, rest level -2.
-// CHIPPOOL-2026-10-27: original instance below; now pool slot jt5205_0 (universal_board.sv)
+// CHIPPOOL-2026-10-27: original instance below; now pool slot jt5205_0 (universal_dispatcher.sv)
 // logic signed [11:0] adp_sig;
 // jt5205 adpcm
 // (
@@ -418,7 +418,7 @@ logic        crtc_vs, crtc_hs, crtc_vbl, crtc_hbl, crtc_de;
 logic [13:0] crtc_ma;
 logic  [4:0] crtc_ra;
 
-// CHIPPOOL-2026-10-27: original instance below; now pool slot mc6845_0 (universal_board.sv)
+// CHIPPOOL-2026-10-27: original instance below; now pool slot mc6845_0 (universal_dispatcher.sv)
 // mc6845 crtc
 // (
 //     .CLOCK(clk), .CLKEN(crtc_ce), .nRESET(~reset),

@@ -78,7 +78,7 @@ module ladybug_char_ram (
   input  logic [7:0] d2_i,
   output logic [7:0] d2_o,
 
-  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_dispatcher.sv); original dpram_dc instance kept below
   output ram_pool_pkg::pram_i_t pr_i,
   input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -147,7 +147,7 @@ module ladybug_sprite_ram (
   input  logic [7:0] d_i,
   output logic [7:0] d_o,
 
-  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_dispatcher.sv); original dpram_dc instance kept below
   output ram_pool_pkg::pram_i_t pr_i,
   input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -210,7 +210,7 @@ module ladybug_char_col_ram (
   input  logic [3:0] d_i,
   output logic [3:0] d_o,
 
-  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_dispatcher.sv); original dpram_dc instance kept below
   output ram_pool_pkg::pram_i_t pr_i,
   input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -279,7 +279,7 @@ module ladybug_sprite_vram (
   input  logic [3:0] d_i,
   output logic [3:0] d_o,
 
-  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_dispatcher.sv); original dpram_dc instance kept below
   output ram_pool_pkg::pram_i_t pr_i,
   input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -351,7 +351,7 @@ module ladybug_cpu_ram (
   input  logic [7:0]  d2_i,
   output logic [7:0]  d2_o,
 
-  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_dispatcher.sv); original dpram_dc instance kept below
   output ram_pool_pkg::pram_i_t pr_i,
   input  ram_pool_pkg::pram_o_t pr_o
 );

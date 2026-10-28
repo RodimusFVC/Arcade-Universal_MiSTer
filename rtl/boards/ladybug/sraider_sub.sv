@@ -15,7 +15,7 @@
 
 module sraider_sub
 (
-    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,   // shared Z80 (rtl/universal_board.sv)
+    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,   // shared Z80 (rtl/universal_dispatcher.sv)
     input  chip_pool_pkg::z80pa_o_t         z80pa_1_o,
     output chip_pool_pkg::sn76489_i_t [4:0] sn76489_i,   // shared SN76489s 2-6
     input  chip_pool_pkg::sn76489_o_t [4:0] sn76489_o,
@@ -39,7 +39,7 @@ module sraider_sub
 
     output logic signed [15:0] audio,
 
-    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
     output ram_pool_pkg::pram_i_t pr_i,
     input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -49,7 +49,7 @@ logic [15:0] a;
 logic  [7:0] din, dout, ram_q;
 logic        int_n = 1'b1, vbl_d = 1'b0;
 
-// the shared T80pa in rtl/universal_board.sv
+// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_1_i.reset_n = res_n;
 assign z80pa_1_i.cen_p   = cen_p & ~pause;
 assign z80pa_1_i.cen_n   = cen_n & ~pause;
@@ -81,7 +81,7 @@ wire ctrl_cs = mem && a[15:11] == 5'b11101;
 
 assign rom_a = a[14:0];
 
-// RAMPOOL-2026-10-27: original instance below; now board RAM pool block (universal_board.sv)
+// RAMPOOL-2026-10-27: original instance below; now board RAM pool block (universal_dispatcher.sv)
 // dpram_dc #(.widthad_a(10)) ram
 // (
 //     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(ram_cs && !wr_n), .q_a(ram_q),
@@ -120,7 +120,7 @@ logic signed [10:0] sn_out[5];
 genvar i;
 generate
     for (i = 0; i < 5; i++) begin : sn
-        // the shared SN76489s in rtl/universal_board.sv
+        // the shared SN76489s in rtl/universal_dispatcher.sv
         assign sn76489_i[i].rst  = ~res_n;
         assign sn76489_i[i].ce   = cen_p & ~pause;
         assign sn76489_i[i].wr_n = ~(io_wr && a[7:3] == i);

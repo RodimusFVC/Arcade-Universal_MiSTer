@@ -56,7 +56,7 @@ module ladybug_rgb (
   output logic [1:0] rgb_b_o,
   output logic [8:1] rgb_n_o,     // Universal: latched inverted PROM byte (8203 board wires it differently)
   output logic       bg_o,        // Universal: pixel is background (no char pen, no sprite)
-  // ROMPOOL-2026-10-27: the K1 PROM is a dispatcher ROM block (universal_board.sv); originals:
+  // ROMPOOL-2026-10-27: the K1 PROM is a dispatcher ROM block (universal_dispatcher.sv); originals:
   // // PROM download interface (replaces dn_* ports)
   // input  logic       prom_wr_i,
   // input  logic [4:0] prom_a_i,

@@ -3,7 +3,7 @@
 //  Copyright (C) 2026 Rodimus
 //
 //  Boards never instantiate a CPU, sound chip, ROM store or board RAM. They live ONCE in the dispatcher
-//  rtl/universal_board.sv: Z80s z80pa_0 / z80pa_1, SN76489 bank sn76489[6:0], MC6845 mc6845_0, MSM5205 jt5205_0, TMS9900
+//  rtl/universal_dispatcher.sv: Z80s z80pa_0 / z80pa_1, SN76489 bank sn76489[6:0], MC6845 mc6845_0, MSM5205 jt5205_0, TMS9900
 //  tms9900_0 (chip_pool_pkg buses), the shared ROM blocks (rom_cpu, rom_char_*, rom_sprite_*, rom_sub, dcspr lanes, rom_dec_*,
 //  PROM blocks rom_k1 / rom_f4 / rom_c4 / rom_dcprom, DDR3 rows/bytes) and the 13 board RAM pool blocks (ram_pool_pkg:
 //  0-2 = 32K, 3 = 4K, 4-12 = 1K; map in the dispatcher's "Board RAM pool" section).

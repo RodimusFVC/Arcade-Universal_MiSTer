@@ -46,7 +46,7 @@
 //
 //============================================================================
 
-module universal_board
+module universal_dispatcher
 (
     input  logic        clk,            // 19.656 MHz
     input  logic        reset,

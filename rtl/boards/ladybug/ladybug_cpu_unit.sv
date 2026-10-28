@@ -20,7 +20,7 @@
 
 module ladybug_cpu_unit
 (
-    output chip_pool_pkg::z80pa_i_t z80pa_0_i,   // shared Z80 (rtl/universal_board.sv)
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,   // shared Z80 (rtl/universal_dispatcher.sv)
     input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
     input  logic        clk_20mhz_i,
     input  logic        cpu_cen_p_i,
@@ -64,7 +64,7 @@ module ladybug_cpu_unit
     input  logic  [7:0] hs_data_in,
     input  logic        hs_write,
 
-    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
     output ram_pool_pkg::pram_i_t pr_i,
     input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -81,7 +81,7 @@ logic        ram_cpu_cs_n_s;
 
 assign wait_n_s = sound_wait_n_i & wait_n_i;
 
-// the shared T80pa in rtl/universal_board.sv
+// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = res_n_i;
 assign z80pa_0_i.cen_p   = cpu_cen_p_i & ~pause_i;
 assign z80pa_0_i.cen_n   = cpu_cen_n_i & ~pause_i;

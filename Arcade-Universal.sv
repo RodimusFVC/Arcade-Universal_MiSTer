@@ -84,10 +84,10 @@ assign BUTTONS = 0;
 ///////////////////////////////////////////////////
 
 // MRA index 1:
-//   byte 0      board variant (see rtl/universal_board.sv)
+//   byte 0      board variant (see rtl/universal_dispatcher.sv)
 //   byte 1      flags: [0] 4-way joystick, [2] coins are 2-frame pulses, [4] vertical, [7] vertical is ROT90
-//   byte 2      CPU ROM decode (see rtl/universal_board.sv)
-//   byte 3      board flags (see rtl/universal_board.sv)
+//   byte 2      CPU ROM decode (see rtl/universal_dispatcher.sv)
+//   byte 3      board flags (see rtl/universal_dispatcher.sv)
 //   bytes 4-9   idle level of every bit of the 6 ports (board order)
 //   bytes 10-15 per port: DIP switch byte that supplies it (bit 7 set = none, use the idle byte)
 //   bytes 16-63 input map, one byte per port bit (bit 0 first): control id, 0 = none; a pressed control inverts its bit
@@ -645,7 +645,7 @@ arcade_video #(256,24) arcade_video
 
 ///////////////                 Board                  ////////////////
 
-universal_board board
+universal_dispatcher board
 (
 	.clk(CLK_SYS),
 	.reset(reset),

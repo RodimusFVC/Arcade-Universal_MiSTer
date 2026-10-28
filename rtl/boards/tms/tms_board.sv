@@ -53,12 +53,12 @@ module tms_board
     output logic        [11:0] rom_chr_a,      // cosmicg colour map / getaway gfx (bit 12 of the gfx address = [15:8])
     input  logic        [15:0] rom_chr_d,
 
-    // RAMPOOL-2026-10-23: the three bitmap planes live in board RAM pool blocks 0-2 (universal_board.sv)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
+    // RAMPOOL-2026-10-23: the three bitmap planes live in board RAM pool blocks 0-2 (universal_dispatcher.sv)
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o,
 
-    // CHIPPOOL-2026-10-27: the TMS9900 and the CRTC are pool slots tms9900_0 / mc6845_0 in universal_board.sv
+    // CHIPPOOL-2026-10-27: the TMS9900 and the CRTC are pool slots tms9900_0 / mc6845_0 in universal_dispatcher.sv
     output chip_pool_pkg::tms9900_i_t   tms9900_0_i,
     input  chip_pool_pkg::tms9900_o_t   tms9900_0_o,
     output chip_pool_pkg::mc6845_i_t    mc6845_0_i,
@@ -104,7 +104,7 @@ logic        int_req;
 logic  [7:0] bhi, blo;
 logic        blit_busy;
 
-// CHIPPOOL-2026-10-27: original instance below; now pool slot tms9900_0 (universal_board.sv)
+// CHIPPOOL-2026-10-27: original instance below; now pool slot tms9900_0 (universal_dispatcher.sv)
 // tms9900 cpu                                                         // cycle_clks_g = 8 (VHDL default)
 // (
 //     .clk            (clk),
@@ -430,7 +430,7 @@ always_ff @(posedge clk) if (ce_cg) chr <= chr + 3'd1;
 wire crtc_ce = ce_cg && chr == 3'd7;
 logic crtc_hs, crtc_vs, crtc_vbl, crtc_hbl, crtc_de;
 
-// CHIPPOOL-2026-10-27: original instance below; now pool slot mc6845_0 (universal_board.sv)
+// CHIPPOOL-2026-10-27: original instance below; now pool slot mc6845_0 (universal_dispatcher.sv)
 // mc6845 crtc
 // (
 //     .CLOCK(clk), .CLKEN(crtc_ce), .nRESET(~reset),
