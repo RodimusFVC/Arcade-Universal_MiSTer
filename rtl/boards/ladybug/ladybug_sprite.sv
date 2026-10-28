@@ -78,11 +78,20 @@ module ladybug_sprite (
   output logic [11:0] rom_sprite_a_o,
   input  logic [15:0] rom_sprite_d_i,
 
-  // PROM download interface (replaces dn_* ports) ----------------------------
-  input  logic        prom_f4_wr_i,
-  input  logic        prom_c4_wr_i,
-  input  logic [4:0]  prom_a_i,
-  input  logic [7:0]  prom_d_i
+  // ROMPOOL-2026-10-27: the F4 / C4 PROMs are dispatcher ROM blocks (universal_board.sv); originals:
+  // // PROM download interface (replaces dn_* ports) ----------------------------
+  // input  logic        prom_f4_wr_i,
+  // input  logic        prom_c4_wr_i,
+  // input  logic [4:0]  prom_a_i,
+  // input  logic [7:0]  prom_d_i,
+  output logic [4:0]  prom_f4_a_o,
+  input  logic [7:0]  prom_f4_d_i,
+  output logic [4:0]  prom_c4_a_o,
+  input  logic [7:0]  prom_c4_d_i,
+
+  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+  output ram_pool_pkg::pram_i_t [4:0] pr_i,
+  input  ram_pool_pkg::pram_o_t [4:0] pr_o
 );
 
   logic sprite_ram_cs_n_s,
@@ -260,7 +269,9 @@ module ladybug_sprite (
     .cs_n_i   (sprite_ram_cs_n_s),
     .we_n_i   (sprite_ram_we_n_s),
     .d_i      (d_from_cpu_i),
-    .d_o      (rb_s)
+    .d_o      (rb_s),
+    .pr_i     (pr_i[0]),
+    .pr_o     (pr_o[0])
   );
 
   // ---------------------------------------------------------------------------
@@ -482,20 +493,23 @@ module ladybug_sprite (
   assign lu_a_s[1]   = qh2_s;
   assign lu_a_s[0]   = qh1_s;
 
-  logic [7:0] prom_F4_qa_unused_s;
-  dpram_dc #(.widthad_a(5), .width_a(8)) prom_F4 (
-    .clock_a   (clk_20mhz_i),
-    .address_a (prom_a_i),
-    .data_a    (prom_d_i),
-    .wren_a    (prom_f4_wr_i),
-    .q_a       (prom_F4_qa_unused_s),
-
-    .clock_b   (clk_20mhz_i),
-    .address_b (lu_a_s),
-    .data_b    (8'd0),
-    .wren_b    (1'b0),
-    .q_b       (lu_d_s)
-  );
+  // ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block (read port exported)
+  //   logic [7:0] prom_F4_qa_unused_s;
+  //   dpram_dc #(.widthad_a(5), .width_a(8)) prom_F4 (
+  //     .clock_a   (clk_20mhz_i),
+  //     .address_a (prom_a_i),
+  //     .data_a    (prom_d_i),
+  //     .wren_a    (prom_f4_wr_i),
+  //     .q_a       (prom_F4_qa_unused_s),
+  //
+  //     .clock_b   (clk_20mhz_i),
+  //     .address_b (lu_a_s),
+  //     .data_b    (8'd0),
+  //     .wren_b    (1'b0),
+  //     .q_b       (lu_d_s)
+  //   );
+  assign prom_f4_a_o = lu_a_s;
+  assign lu_d_s       = prom_f4_d_i;
 
   assign lu_d_mux_s = (cl_q[3] == 1'b0) ? lu_d_s[3:0] : lu_d_s[7:4];
 
@@ -508,20 +522,23 @@ module ladybug_sprite (
   assign ctrl_lu_a_s[3] = h_i[0];
   assign ctrl_lu_a_s[4] = h_i[1];
 
-  logic [7:0] prom_C4_qa_unused_s;
-  dpram_dc #(.widthad_a(5), .width_a(8)) prom_C4 (
-    .clock_a   (clk_20mhz_i),
-    .address_a (prom_a_i),
-    .data_a    (prom_d_i),
-    .wren_a    (prom_c4_wr_i),
-    .q_a       (prom_C4_qa_unused_s),
-
-    .clock_b   (clk_20mhz_i),
-    .address_b (ctrl_lu_a_s),
-    .data_b    (8'd0),
-    .wren_b    (1'b0),
-    .q_b       (ctrl_lu_d_s)
-  );
+  // ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block (read port exported)
+  //   logic [7:0] prom_C4_qa_unused_s;
+  //   dpram_dc #(.widthad_a(5), .width_a(8)) prom_C4 (
+  //     .clock_a   (clk_20mhz_i),
+  //     .address_a (prom_a_i),
+  //     .data_a    (prom_d_i),
+  //     .wren_a    (prom_c4_wr_i),
+  //     .q_a       (prom_C4_qa_unused_s),
+  //
+  //     .clock_b   (clk_20mhz_i),
+  //     .address_b (ctrl_lu_a_s),
+  //     .data_b    (8'd0),
+  //     .wren_b    (1'b0),
+  //     .q_b       (ctrl_lu_d_s)
+  //   );
+  assign prom_c4_a_o  = ctrl_lu_a_s;
+  assign ctrl_lu_d_s  = prom_c4_d_i;
 
   // ---------------------------------------------------------------------------
   // Process ctrl_lu_seq
@@ -682,7 +699,9 @@ module ladybug_sprite (
     .cs_n_i   (rs_n_s[0]),
     .we_n_i   (vram_we_n_s),
     .d_i      (vram_a6_in_s),
-    .d_o      (vram_a6_out_s)
+    .d_o      (vram_a6_out_s),
+    .pr_i     (pr_i[1]),
+    .pr_o     (pr_o[1])
   );
   //
   assign vram_b6_in_s[0] = rd_shift_s[ 1];
@@ -696,7 +715,9 @@ module ladybug_sprite (
     .cs_n_i   (rs_n_s[1]),
     .we_n_i   (vram_we_n_s),
     .d_i      (vram_b6_in_s),
-    .d_o      (vram_b6_out_s)
+    .d_o      (vram_b6_out_s),
+    .pr_i     (pr_i[2]),
+    .pr_o     (pr_o[2])
   );
   //
   assign vram_c6_in_s[0] = rd_shift_s[ 2];
@@ -710,7 +731,9 @@ module ladybug_sprite (
     .cs_n_i   (rs_n_s[2]),
     .we_n_i   (vram_we_n_s),
     .d_i      (vram_c6_in_s),
-    .d_o      (vram_c6_out_s)
+    .d_o      (vram_c6_out_s),
+    .pr_i     (pr_i[3]),
+    .pr_o     (pr_o[3])
   );
   //
   assign vram_d6_in_s[0] = rd_shift_s[ 3];
@@ -724,7 +747,9 @@ module ladybug_sprite (
     .cs_n_i   (rs_n_s[3]),
     .we_n_i   (vram_we_n_s),
     .d_i      (vram_d6_in_s),
-    .d_o      (vram_d6_out_s)
+    .d_o      (vram_d6_out_s),
+    .pr_i     (pr_i[4]),
+    .pr_o     (pr_o[4])
   );
   // Remap VRAM data outputs to the complete bus ------------------------------
   assign rd_vram_s[15] = vram_d6_out_s[3] | rs_n_s[3];

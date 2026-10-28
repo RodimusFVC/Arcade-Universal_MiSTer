@@ -37,7 +37,11 @@ module sraider_sub
     output logic         [7:0] grid_d,
     output logic         [7:0] ctrl,
 
-    output logic signed [15:0] audio
+    output logic signed [15:0] audio,
+
+    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+    output ram_pool_pkg::pram_i_t pr_i,
+    input  ram_pool_pkg::pram_o_t pr_o
 );
 
 logic        mreq_n, iorq_n, rd_n, wr_n, m1_n, rfsh_n;
@@ -77,11 +81,15 @@ wire ctrl_cs = mem && a[15:11] == 5'b11101;
 
 assign rom_a = a[14:0];
 
-dpram_dc #(.widthad_a(10)) ram
-(
-    .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(ram_cs && !wr_n), .q_a(ram_q),
-    .clock_b(clk)
-);
+// RAMPOOL-2026-10-27: original instance below; now board RAM pool block (universal_board.sv)
+// dpram_dc #(.widthad_a(10)) ram
+// (
+//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(ram_cs && !wr_n), .q_a(ram_q),
+//     .clock_b(clk)
+// );
+assign pr_i.a_addr = {5'd0, a[9:0]};  assign pr_i.a_d = dout;  assign pr_i.a_we = ram_cs && !wr_n;
+assign pr_i.b_addr = 15'd0;           assign pr_i.b_d = 8'd0;  assign pr_i.b_we = 1'b0;
+assign ram_q = pr_o.a_q;
 
 // 556 dual timer on D1-D0: MAME returns random bits; a free-running LFSR stands in
 logic [15:0] rnd = 16'hACE1;

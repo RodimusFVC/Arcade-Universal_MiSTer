@@ -1,12 +1,13 @@
 //============================================================================
 //
-//  ram_pool_pkg — bus types for the Universal core's shared board RAM pool
+//  ram_pool_pkg - bus types for a multi-board core's shared board RAM pool
 //  Copyright (C) 2026 Rodimus
 //
-//  Only one board runs at a time, so the boards' larger RAMs live in three 32K x 8 true dual-port blocks in
-//  rtl/universal_board.sv (the Lady Bug CRT Flip frame buffer when a Lady Bug-video board runs). A board drives
-//  up to three blocks through pram_i_t (both ports read / write, as dpram_dc) and reads pram_o_t; the block
-//  owner is picked by variant. Same timing as a private dpram_dc: registered address, one clock to q.
+//  Master copy: RodimusCoresMaster_MiSTer/rtl/ram_pool_pkg.sv; sync.sh copies it into each core unchanged.
+//  Only one board runs at a time, so the boards' RAMs live in a few true dual-port blocks in the core's
+//  dispatcher, each sized to its largest user. A board drives the blocks through pram_i_t (both ports read / write,
+//  as dpram_dc) and reads pram_o_t; the dispatcher picks the owner by variant. Same timing as a private dpram_dc:
+//  registered address, one clock to q. A block narrower than 32K uses the low address bits.
 //
 //============================================================================
 

@@ -70,8 +70,9 @@ module mrdo_board
     input  logic               hs_write,
 
     // RAMPOOL-2026-10-23: work RAM / fg code / fg attr live in the board RAM pool (universal_board.sv)
-    output ram_pool_pkg::pram_i_t [2:0] pr_i,
-    input  ram_pool_pkg::pram_o_t [2:0] pr_o
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
+    output ram_pool_pkg::pram_i_t [12:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
 
 // ------------------------------------------------------------------ clocks
@@ -160,16 +161,23 @@ logic [7:0] bga_q, bgc_q, fga_q, fgc_q, ram_q;
 logic [7:0] vbga_q, vbgc_q, vfga_q, vfgc_q;
 logic [9:0] vbg_a, vfg_a;
 
-dpram_dc #(.widthad_a(10)) bg_attr
-(
-    .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(bg_cs && wr && !a[10]), .q_a(bga_q),
-    .clock_b(clk), .address_b(vbg_a), .q_b(vbga_q)
-);
-dpram_dc #(.widthad_a(10)) bg_code
-(
-    .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(bg_cs && wr && a[10]), .q_a(bgc_q),
-    .clock_b(clk), .address_b(vbg_a), .q_b(vbgc_q)
-);
+// RAMPOOL-2026-10-27: originals below; now pool blocks 4 (bg attr) / 5 (bg code), same ports and timing
+// dpram_dc #(.widthad_a(10)) bg_attr
+// (
+//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(bg_cs && wr && !a[10]), .q_a(bga_q),
+//     .clock_b(clk), .address_b(vbg_a), .q_b(vbga_q)
+// );
+// dpram_dc #(.widthad_a(10)) bg_code
+// (
+//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(bg_cs && wr && a[10]), .q_a(bgc_q),
+//     .clock_b(clk), .address_b(vbg_a), .q_b(vbgc_q)
+// );
+assign pr_i[4].a_addr = {5'd0, a[9:0]};  assign pr_i[4].a_d = dout;  assign pr_i[4].a_we = bg_cs && wr && !a[10];   // bg attr
+assign pr_i[4].b_addr = {5'd0, vbg_a};   assign pr_i[4].b_d = 8'd0;  assign pr_i[4].b_we = 1'b0;
+assign bga_q = pr_o[4].a_q;  assign vbga_q = pr_o[4].b_q;
+assign pr_i[5].a_addr = {5'd0, a[9:0]};  assign pr_i[5].a_d = dout;  assign pr_i[5].a_we = bg_cs && wr && a[10];    // bg code
+assign pr_i[5].b_addr = {5'd0, vbg_a};   assign pr_i[5].b_d = 8'd0;  assign pr_i[5].b_we = 1'b0;
+assign bgc_q = pr_o[5].a_q;  assign vbgc_q = pr_o[5].b_q;
 // RAMPOOL-2026-10-23: originals below; these three RAMs are pool blocks 2 / 1 / 0 (same ports, same timing)
 // dpram_dc #(.widthad_a(10)) fg_attr
 // (
@@ -200,13 +208,21 @@ assign ram_q = pr_o[0].a_q;  assign hs_data_out = pr_o[0].b_q;
 logic [5:0] spr_rd_e;
 logic [7:0] spr_q[4];
 genvar l;
+// RAMPOOL-2026-10-27: original lane RAMs below; now pool blocks 8-11
+// generate
+//     for (l = 0; l < 4; l++) begin : spr_lane
+//         dpram_dc #(.widthad_a(6)) ram
+//         (
+//             .clock_a(clk), .address_a(a[7:2]), .data_a(dout), .wren_a(spr_cs && wr && a[1:0] == l),
+//             .clock_b(clk), .address_b(spr_rd_e), .q_b(spr_q[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 4; l++) begin : spr_lane
-        dpram_dc #(.widthad_a(6)) ram
-        (
-            .clock_a(clk), .address_a(a[7:2]), .data_a(dout), .wren_a(spr_cs && wr && a[1:0] == l),
-            .clock_b(clk), .address_b(spr_rd_e), .q_b(spr_q[l])
-        );
+        assign pr_i[8+l].a_addr = {9'd0, a[7:2]};  assign pr_i[8+l].a_d = dout;  assign pr_i[8+l].a_we = spr_cs && wr && a[1:0] == l;
+        assign pr_i[8+l].b_addr = {9'd0, spr_rd_e};  assign pr_i[8+l].b_d = 8'd0;  assign pr_i[8+l].b_we = 1'b0;
+        assign spr_q[l] = pr_o[8+l].b_q;
     end
 endgenerate
 
@@ -328,15 +344,25 @@ logic       lb_clr;
 logic       build_buf;
 logic       disp_buf;
 
+// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 6 / 7
+// generate
+//     for (l = 0; l < 2; l++) begin : lbuf
+//         dpram_dc #(.widthad_a(8)) ram
+//         (
+//             .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
+//             .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        dpram_dc #(.widthad_a(8)) ram
-        (
-            .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
-            .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q[l])
-        );
+        assign pr_i[6+l].a_addr = {7'd0, lb_wa};  assign pr_i[6+l].a_d = lb_wd;  assign pr_i[6+l].a_we = lb_we && build_buf == l;
+        assign pr_i[6+l].b_addr = {7'd0, lb_ra};  assign pr_i[6+l].b_d = 8'd0;   assign pr_i[6+l].b_we = lb_clr && disp_buf == l;
+        assign lb_q[l] = pr_o[6+l].b_q;
     end
 endgenerate
+assign pr_i[3] = '0;
+assign pr_i[12] = '0;
 
 // target line for the builder (CRT Flip: build the mirrored logical line; visible y 32-223 is symmetric)
 wire  [8:0] sp_tgt = (vcnt >= 9'd260) ? vcnt - 9'd260 : vcnt + 9'd2;

@@ -54,8 +54,15 @@ module tms_board
     input  logic        [15:0] rom_chr_d,
 
     // RAMPOOL-2026-10-23: the three bitmap planes live in board RAM pool blocks 0-2 (universal_board.sv)
-    output ram_pool_pkg::pram_i_t [2:0] pr_i,
-    input  ram_pool_pkg::pram_o_t [2:0] pr_o,
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
+    output ram_pool_pkg::pram_i_t [12:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [12:0] pr_o,
+
+    // CHIPPOOL-2026-10-27: the TMS9900 and the CRTC are pool slots tms9900_0 / mc6845_0 in universal_board.sv
+    output chip_pool_pkg::tms9900_i_t   tms9900_0_i,
+    input  chip_pool_pkg::tms9900_o_t   tms9900_0_o,
+    output chip_pool_pkg::mc6845_i_t    mc6845_0_i,
+    input  chip_pool_pkg::mc6845_o_t    mc6845_0_o,
 
     // HSCORE-2026-10-23: hiscore access to the cosmicg RAM (2000-3FFF = plane 0)
     input  logic        [15:0] hs_address,
@@ -97,38 +104,57 @@ logic        int_req;
 logic  [7:0] bhi, blo;
 logic        blit_busy;
 
-tms9900 cpu                                                         // cycle_clks_g = 8 (VHDL default)
-(
-    .clk            (clk),
-    .reset          (reset),
-    .addr_out       (cpu_a),
-    .data_in        ({bhi, blo}),
-    .data_out       (cpu_do),
-    .rd             (cpu_rd),
-    .wr             (cpu_wr),
-    .ready          (cpu_ready),
-    .iaq            (),
-    .as             (cpu_as),
-    .alu_debug_arg1 (),
-    .alu_debug_arg2 (),
-    .cpu_debug_out  (),
-    .mult_debug_out (),
-    .int_req        (int_req),
-    .ic03           (getaway ? 4'd2 : 4'd4),
-    .int_ack        (cpu_int_ack),
-    .cruin          (cpu_cruin),
-    .cruout         (cpu_cruout),
-    .cruclk         (cpu_cruclk),
-    .hold           (pause | blit_busy),
-    // .holda          (),   // HSCORE-2026-10-23: original
-    .holda          (cpu_holda),
-    .waits          (8'd0),
-    .scratch_en     (1'b0),
-    .stuck          (),
-    .turbo          (1'b0),
-    .byte_bus       (~getaway),
-    .ir_step2       (step2)
-);
+// CHIPPOOL-2026-10-27: original instance below; now pool slot tms9900_0 (universal_board.sv)
+// tms9900 cpu                                                         // cycle_clks_g = 8 (VHDL default)
+// (
+//     .clk            (clk),
+//     .reset          (reset),
+//     .addr_out       (cpu_a),
+//     .data_in        ({bhi, blo}),
+//     .data_out       (cpu_do),
+//     .rd             (cpu_rd),
+//     .wr             (cpu_wr),
+//     .ready          (cpu_ready),
+//     .iaq            (),
+//     .as             (cpu_as),
+//     .alu_debug_arg1 (),
+//     .alu_debug_arg2 (),
+//     .cpu_debug_out  (),
+//     .mult_debug_out (),
+//     .int_req        (int_req),
+//     .ic03           (getaway ? 4'd2 : 4'd4),
+//     .int_ack        (cpu_int_ack),
+//     .cruin          (cpu_cruin),
+//     .cruout         (cpu_cruout),
+//     .cruclk         (cpu_cruclk),
+//     .hold           (pause | blit_busy),
+//     // .holda          (),   // HSCORE-2026-10-23: original
+//     .holda          (cpu_holda),
+//     .waits          (8'd0),
+//     .scratch_en     (1'b0),
+//     .stuck          (),
+//     .turbo          (1'b0),
+//     .byte_bus       (~getaway),
+//     .ir_step2       (step2)
+// );
+assign tms9900_0_i.reset    = reset;
+assign tms9900_0_i.data_in  = {bhi, blo};
+assign tms9900_0_i.ready    = cpu_ready;
+assign tms9900_0_i.int_req  = int_req;
+assign tms9900_0_i.ic03     = getaway ? 4'd2 : 4'd4;
+assign tms9900_0_i.cruin    = cpu_cruin;
+assign tms9900_0_i.hold     = pause | blit_busy;
+assign tms9900_0_i.byte_bus = ~getaway;
+assign tms9900_0_i.ir_step2 = step2;
+assign cpu_a       = tms9900_0_o.addr_out;
+assign cpu_do      = tms9900_0_o.data_out;
+assign cpu_rd      = tms9900_0_o.rd;
+assign cpu_wr      = tms9900_0_o.wr;
+assign cpu_as      = tms9900_0_o.as;
+assign cpu_int_ack = tms9900_0_o.int_ack;
+assign cpu_cruout  = tms9900_0_o.cruout;
+assign cpu_cruclk  = tms9900_0_o.cruclk;
+assign cpu_holda   = tms9900_0_o.holda;
 
 // ------------------------------------------------------------------ byte sequencer: every word = high byte
 // (even address) then low byte, on 8-bit memories; READY holds the CPU until both are done
@@ -188,11 +214,15 @@ always_comb begin
     end
 end
 
-dpram_dc #(.widthad_a(11)) work_ram
-(
-    .clock_a(clk), .address_a(ba[10:0]), .data_a(b_do), .wren_a(getaway && ga_ram && b_wr), .q_a(ram_q),
-    .clock_b(clk), .address_b(11'd0), .q_b()
-);
+// RAMPOOL-2026-10-27: original below; now pool block 3 (4K block, low 2K used)
+// dpram_dc #(.widthad_a(11)) work_ram
+// (
+//     .clock_a(clk), .address_a(ba[10:0]), .data_a(b_do), .wren_a(getaway && ga_ram && b_wr), .q_a(ram_q),
+//     .clock_b(clk), .address_b(11'd0), .q_b()
+// );
+assign pr_i[3].a_addr = {4'd0, ba[10:0]};  assign pr_i[3].a_d = b_do;  assign pr_i[3].a_we = getaway && ga_ram && b_wr;
+assign pr_i[3].b_addr = 15'd0;             assign pr_i[3].b_d = 8'd0;  assign pr_i[3].b_we = 1'b0;
+assign ram_q = pr_o[3].a_q;
 
 // ------------------------------------------------------------------ CRU
 // CRU bit = address / 2 (MAME's CRU maps are in address units: map(0x10, 0x1f) = bits 8-15)
@@ -379,14 +409,20 @@ generate
         assign pr_i[p].b_we   = 1'b0;
         assign pl_qa[p] = pr_o[p].a_q;
         assign pl_qb[p] = pr_o[p].b_q;
-        dpram_dc #(.widthad_a(10)) sc
-        (
-            .clock_a(clk), .address_a({b_col[1:0], b_dy}), .data_a(new_s),
-            .wren_a(getaway && bl_wr && !b_main && b_col[4:2] == 3'b111), .q_a(sc_qa[p]),
-            .clock_b(clk), .address_b(sc_ab), .q_b(sc_qb[p])
-        );
+        // RAMPOOL-2026-10-27: original below; now pool blocks 4-6
+        //         dpram_dc #(.widthad_a(10)) sc
+        //         (
+        //             .clock_a(clk), .address_a({b_col[1:0], b_dy}), .data_a(new_s),
+        //             .wren_a(getaway && bl_wr && !b_main && b_col[4:2] == 3'b111), .q_a(sc_qa[p]),
+        //             .clock_b(clk), .address_b(sc_ab), .q_b(sc_qb[p])
+        //         );
+        assign pr_i[4+p].a_addr = {5'd0, b_col[1:0], b_dy};  assign pr_i[4+p].a_d = new_s;
+        assign pr_i[4+p].a_we   = getaway && bl_wr && !b_main && b_col[4:2] == 3'b111;
+        assign pr_i[4+p].b_addr = {5'd0, sc_ab};            assign pr_i[4+p].b_d = 8'd0;  assign pr_i[4+p].b_we = 1'b0;
+        assign sc_qa[p] = pr_o[4+p].a_q;  assign sc_qb[p] = pr_o[4+p].b_q;
     end
 endgenerate
+assign pr_i[12:7] = '0;
 
 // ------------------------------------------------------------------ cosmicg video: MC6845, bitmap + colour map
 logic [2:0] chr = 3'd0;
@@ -394,13 +430,19 @@ always_ff @(posedge clk) if (ce_cg) chr <= chr + 3'd1;
 wire crtc_ce = ce_cg && chr == 3'd7;
 logic crtc_hs, crtc_vs, crtc_vbl, crtc_hbl, crtc_de;
 
-mc6845 crtc
-(
-    .CLOCK(clk), .CLKEN(crtc_ce), .nRESET(~reset),
-    .ENABLE(crtc_en), .R_nW(cpu_rd), .RS(ba[2]), .DI(b_do), .DO(crtc_do),
-    .VSYNC(crtc_vs), .HSYNC(crtc_hs), .VBLANK(crtc_vbl), .HBLANK(crtc_hbl), .DE(crtc_de),
-    .CURSOR(), .LPSTB(1'b0), .MA(crtc_ma), .RA(crtc_ra)
-);
+// CHIPPOOL-2026-10-27: original instance below; now pool slot mc6845_0 (universal_board.sv)
+// mc6845 crtc
+// (
+//     .CLOCK(clk), .CLKEN(crtc_ce), .nRESET(~reset),
+//     .ENABLE(crtc_en), .R_nW(cpu_rd), .RS(ba[2]), .DI(b_do), .DO(crtc_do),
+//     .VSYNC(crtc_vs), .HSYNC(crtc_hs), .VBLANK(crtc_vbl), .HBLANK(crtc_hbl), .DE(crtc_de),
+//     .CURSOR(), .LPSTB(1'b0), .MA(crtc_ma), .RA(crtc_ra)
+// );
+assign mc6845_0_i.reset_n = ~reset;  assign mc6845_0_i.clken = crtc_ce;  assign mc6845_0_i.enable = crtc_en;
+assign mc6845_0_i.r_nw = cpu_rd;  assign mc6845_0_i.rs = ba[2];  assign mc6845_0_i.di = b_do;
+assign crtc_do = mc6845_0_o.dout;
+assign crtc_vs = mc6845_0_o.vsync;  assign crtc_hs = mc6845_0_o.hsync;  assign crtc_vbl = mc6845_0_o.vblank;
+assign crtc_hbl = mc6845_0_o.hblank;  assign crtc_de = mc6845_0_o.de;  assign crtc_ma = mc6845_0_o.ma;  assign crtc_ra = mc6845_0_o.ra;
 
 // CRT Flip: mirrored MA / RA from the previous frame's first / last displayed character and last row line
 logic [13:0] ma_first_c, ma_last_c, ma_sum = 14'd0;

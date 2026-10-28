@@ -76,8 +76,10 @@ module cosmic_board
     input  logic         [7:0] grid_q,
 
     // RAMPOOL-2026-10-23: video RAM lives in board RAM pool block 0 (universal_board.sv; the grid is block 1)
-    output ram_pool_pkg::pram_i_t pr0_i,
-    input  ram_pool_pkg::pram_o_t pr0_o,
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
+    // Originals: output pram_i_t pr0_i / input pram_o_t pr0_o (now pr_i[0], aliased below)
+    output ram_pool_pkg::pram_i_t [12:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [12:0] pr_o,
 
     // HSCORE-2026-10-23: hiscore access to the video RAM (it is also the work RAM: 4000-5FFF / 6000-7FFF)
     input  logic        [15:0] hs_address,
@@ -85,6 +87,12 @@ module cosmic_board
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write
 );
+
+// RAMPOOL-2026-10-27: pr0 is pool block 0 (the ports used to be pr0_i / pr0_o); block 1 = Devil Zone grid, driven by the dispatcher
+ram_pool_pkg::pram_i_t pr0_i;
+ram_pool_pkg::pram_o_t pr0_o;
+assign pr_i[0] = pr0_i;
+assign pr0_o = pr_o[0];
 
 wire k_panic = (kind == 3'd0);
 wire k_cosa  = (kind == 3'd1);
@@ -462,15 +470,26 @@ logic       build_buf = 1'b0;
 wire        disp_buf;
 
 genvar l;
+// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 4 / 5
+// generate
+//     for (l = 0; l < 2; l++) begin : lbuf
+//         dpram_dc #(.widthad_a(8), .width_a(8)) ram
+//         (
+//             .clock_a(clk), .address_a(lb_wa), .data_a({1'b0, lb_wd}), .wren_a(lb_we && build_buf == l),
+//             .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q_w[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        dpram_dc #(.widthad_a(8), .width_a(8)) ram
-        (
-            .clock_a(clk), .address_a(lb_wa), .data_a({1'b0, lb_wd}), .wren_a(lb_we && build_buf == l),
-            .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q_w[l])
-        );
+        assign pr_i[4+l].a_addr = {7'd0, lb_wa};  assign pr_i[4+l].a_d = {1'b0, lb_wd};  assign pr_i[4+l].a_we = lb_we && build_buf == l;
+        assign pr_i[4+l].b_addr = {7'd0, lb_ra};  assign pr_i[4+l].b_d = 8'd0;           assign pr_i[4+l].b_we = lb_clr && disp_buf == l;
+        assign lb_q_w[l] = pr_o[4+l].b_q;
     end
 endgenerate
+assign pr_i[3] = '0;
+assign pr_i[12:6] = '0;
+assign pr_i[2:1] = '0;
 assign lb_q[0] = lb_q_w[0][6:0];
 assign lb_q[1] = lb_q_w[1][6:0];
 

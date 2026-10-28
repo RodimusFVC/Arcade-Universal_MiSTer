@@ -63,16 +63,27 @@ module ladybug_machine
     output logic        [14:0] rom_sub_a_o,
     input  logic         [7:0] rom_sub_d_i,
 
-    input  logic         [4:0] prom_a_i,
-    input  logic         [7:0] prom_d_i,
-    input  logic               prom_k1_wr_i,
-    input  logic               prom_f4_wr_i,
-    input  logic               prom_c4_wr_i,
+    // ROMPOOL-2026-10-27: PROMs are dispatcher ROM blocks (read ports); originals:
+    // input  logic         [4:0] prom_a_i,
+    // input  logic         [7:0] prom_d_i,
+    // input  logic               prom_k1_wr_i,
+    // input  logic               prom_f4_wr_i,
+    // input  logic               prom_c4_wr_i,
+    output logic         [4:0] prom_k1_a_o,
+    input  logic         [7:0] prom_k1_d_i,
+    output logic         [4:0] prom_f4_a_o,
+    input  logic         [7:0] prom_f4_d_i,
+    output logic         [4:0] prom_c4_a_o,
+    input  logic         [7:0] prom_c4_d_i,
 
     input  logic        [15:0] hs_address,
     output logic         [7:0] hs_data_out,
     input  logic         [7:0] hs_data_in,
-    input  logic               hs_write
+    input  logic               hs_write,
+
+    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+    output ram_pool_pkg::pram_i_t [8:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [8:0] pr_o
 );
 
 logic        clk_en_10mhz_s, clk_en_10mhz_n_s, clk_en_5mhz_s, clk_en_5mhz_n_s;
@@ -164,7 +175,9 @@ ladybug_cpu_unit cpu_b
     .hs_address     (hs_address),
     .hs_data_out    (hs_data_out_cpu),
     .hs_data_in     (hs_data_in),
-    .hs_write       (hs_write & hs_cs_cpu)
+    .hs_write       (hs_write & hs_cs_cpu),
+    .pr_i           (pr_i[0]),
+    .pr_o           (pr_o[0])
 );
 
 assign d_to_cpu_s = (!(cs7_n_s & cs13_n_s)) ? d_from_video_s : 8'hFF;
@@ -207,16 +220,25 @@ ladybug_video_unit video_b
     .rom_char_d_i     (rom_char_d_i),
     .rom_sprite_a_o   (rom_sprite_a_o),
     .rom_sprite_d_i   (rom_sprite_d_i),
-    .prom_a_i         (prom_a_i),
-    .prom_d_i         (prom_d_i),
-    .prom_k1_wr_i     (prom_k1_wr_i),
-    .prom_f4_wr_i     (prom_f4_wr_i),
-    .prom_c4_wr_i     (prom_c4_wr_i),
+    // ROMPOOL-2026-10-27: originals
+    // .prom_a_i         (prom_a_i),
+    // .prom_d_i         (prom_d_i),
+    // .prom_k1_wr_i     (prom_k1_wr_i),
+    // .prom_f4_wr_i     (prom_f4_wr_i),
+    // .prom_c4_wr_i     (prom_c4_wr_i),
+    .prom_k1_a_o      (prom_k1_a_o),
+    .prom_k1_d_i      (prom_k1_d_i),
+    .prom_f4_a_o      (prom_f4_a_o),
+    .prom_f4_d_i      (prom_f4_d_i),
+    .prom_c4_a_o      (prom_c4_a_o),
+    .prom_c4_d_i      (prom_c4_d_i),
     .pause            (pause_i),
     .hs_address       (hs_address),
     .hs_data_in       (hs_data_in),
     .hs_data_out      (hs_data_out_vram),
-    .hs_write         (hs_write & hs_cs_vram)
+    .hs_write         (hs_write & hs_cs_vram),
+    .pr_i             (pr_i[7:1]),
+    .pr_o             (pr_o[7:1])
 );
 
 ladybug_sound_unit sound_b
@@ -259,7 +281,9 @@ sraider_sub sub_b
     .grid_a   (grid_a_o),
     .grid_d   (grid_d_o),
     .ctrl     (ctrl_o),
-    .audio    (audio_sub_s)
+    .audio    (audio_sub_s),
+    .pr_i     (pr_i[8]),
+    .pr_o     (pr_o[8])
 );
 
 assign audio_o = board_8203_i ? audio_sub_s : audio_lb_s;

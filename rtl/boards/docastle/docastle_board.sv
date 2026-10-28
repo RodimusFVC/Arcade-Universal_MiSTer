@@ -39,6 +39,11 @@ module docastle_board
     input  chip_pool_pkg::z80pa_o_t         z80pa_1_o,
     output chip_pool_pkg::sn76489_i_t [3:0] sn76489_i,   // shared SN76489s 0-3
     input  chip_pool_pkg::sn76489_o_t [3:0] sn76489_o,
+    // CHIPPOOL-2026-10-27: the MSM5205 (jt5205) and the CRTC are pool slots jt5205_0 / mc6845_0 in universal_board.sv
+    output chip_pool_pkg::jt5205_i_t        jt5205_0_i,
+    input  chip_pool_pkg::jt5205_o_t        jt5205_0_o,
+    output chip_pool_pkg::mc6845_i_t        mc6845_0_i,
+    input  chip_pool_pkg::mc6845_o_t        mc6845_0_o,
     input  logic               clk,            // 19.656 MHz
     input  logic               reset,
     input  logic               pause,
@@ -88,9 +93,12 @@ module docastle_board
     input  logic         [7:0] rom_adpcm_d,
     input  logic               rom_adpcm_rdy,  // rom_adpcm_d is the byte at rom_adpcm_a
 
-    input  logic               prom_wr,
-    input  logic         [7:0] prom_a,
-    input  logic         [7:0] prom_d,
+    // ROMPOOL-2026-10-27: the colour PROM is a dispatcher ROM block (read port exported); originals:
+    // input  logic               prom_wr,
+    // input  logic         [7:0] prom_a,
+    // input  logic         [7:0] prom_d,
+    output logic         [7:0] prom_a_o,
+    input  logic         [7:0] prom_d_i,
 
     input  logic        [12:0] hs_address,
     output logic         [7:0] hs_data_out,
@@ -98,8 +106,9 @@ module docastle_board
     input  logic               hs_write,
 
     // RAMPOOL-2026-10-23: main RAM / sub RAM / video RAM live in the board RAM pool (universal_board.sv)
-    output ram_pool_pkg::pram_i_t [2:0] pr_i,
-    input  ram_pool_pkg::pram_o_t [2:0] pr_o
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
+    output ram_pool_pkg::pram_i_t [12:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
 
 // ------------------------------------------------------------------ clocks
@@ -384,12 +393,16 @@ end
 // );
 // S = 2 (/48). jt5205 latches adp_nib on its irq (= vck) and outputs it decoded at the next one: one sample later
 // than MAME, which decodes the nibble written in the VCK callback. Full 12 bits out, rest level -2.
+// CHIPPOOL-2026-10-27: original instance below; now pool slot jt5205_0 (universal_board.sv)
+// logic signed [11:0] adp_sig;
+// jt5205 adpcm
+// (
+//     .rst(adp_rst), .clk(clk), .cen(msm_cen), .sel(2'd2), .din(adp_nib),
+//     .sound(adp_sig), .sample(), .irq(vck), .vclk_o()
+// );
 logic signed [11:0] adp_sig;
-jt5205 adpcm
-(
-    .rst(adp_rst), .clk(clk), .cen(msm_cen), .sel(2'd2), .din(adp_nib),
-    .sound(adp_sig), .sample(), .irq(vck), .vclk_o()
-);
+assign jt5205_0_i.rst = adp_rst;  assign jt5205_0_i.cen = msm_cen;  assign jt5205_0_i.sel = 2'd2;  assign jt5205_0_i.din = adp_nib;
+assign adp_sig = jt5205_0_o.sound;  assign vck = jt5205_0_o.irq;
 
 // mix: 4x SN76489A at 0.25, MSM5205 at 0.40 (MAME routes)
 // SN: jt89 channel +/-255 x4 = MAME 0x7fff/4 x 0.25 per channel; MSM: MAME 2047/4096 x 0.40 of full scale = x3.2
@@ -405,13 +418,18 @@ logic        crtc_vs, crtc_hs, crtc_vbl, crtc_hbl, crtc_de;
 logic [13:0] crtc_ma;
 logic  [4:0] crtc_ra;
 
-mc6845 crtc
-(
-    .CLOCK(clk), .CLKEN(crtc_ce), .nRESET(~reset),
-    .ENABLE(m_crtc), .R_nW(1'b0), .RS(m_a[1]), .DI(m_do), .DO(),
-    .VSYNC(crtc_vs), .HSYNC(crtc_hs), .VBLANK(crtc_vbl), .HBLANK(crtc_hbl), .DE(crtc_de),
-    .CURSOR(), .LPSTB(1'b0), .MA(crtc_ma), .RA(crtc_ra)
-);
+// CHIPPOOL-2026-10-27: original instance below; now pool slot mc6845_0 (universal_board.sv)
+// mc6845 crtc
+// (
+//     .CLOCK(clk), .CLKEN(crtc_ce), .nRESET(~reset),
+//     .ENABLE(m_crtc), .R_nW(1'b0), .RS(m_a[1]), .DI(m_do), .DO(),
+//     .VSYNC(crtc_vs), .HSYNC(crtc_hs), .VBLANK(crtc_vbl), .HBLANK(crtc_hbl), .DE(crtc_de),
+//     .CURSOR(), .LPSTB(1'b0), .MA(crtc_ma), .RA(crtc_ra)
+// );
+assign mc6845_0_i.reset_n = ~reset;  assign mc6845_0_i.clken = crtc_ce;  assign mc6845_0_i.enable = m_crtc;
+assign mc6845_0_i.r_nw = 1'b0;  assign mc6845_0_i.rs = m_a[1];  assign mc6845_0_i.di = m_do;
+assign crtc_vs = mc6845_0_o.vsync;  assign crtc_hs = mc6845_0_o.hsync;  assign crtc_vbl = mc6845_0_o.vblank;
+assign crtc_hbl = mc6845_0_o.hblank;  assign crtc_de = mc6845_0_o.de;  assign crtc_ma = mc6845_0_o.ma;  assign crtc_ra = mc6845_0_o.ra;
 
 // main IRQ follows VSYNC (MAME set_inputline); sub IRQ on HSYNC when MA6 rises (MAME docastle_tint)
 assign m_int_n = ~crtc_vs;
@@ -439,22 +457,34 @@ logic [7:0] v_code, v_attr;
 assign pr_i[2].a_addr = {5'd0, m_a[9:0]};  assign pr_i[2].a_d = m_do;  assign pr_i[2].a_we = m_vram && !m_wr_n;
 assign pr_i[2].b_addr = {5'd0, v_tile_a};  assign pr_i[2].b_d = 8'd0;  assign pr_i[2].b_we = 1'b0;
 assign vram_q = pr_o[2].a_q;  assign v_code = pr_o[2].b_q;
-dpram_dc #(.widthad_a(10)) color_ram
-(
-    .clock_a(clk), .address_a(m_a[9:0]), .data_a(m_do), .wren_a(m_cram && !m_wr_n), .q_a(cram_q),
-    .clock_b(clk), .address_b(v_tile_a), .q_b(v_attr)
-);
+// RAMPOOL-2026-10-27: original below; now pool block 4
+// dpram_dc #(.widthad_a(10)) color_ram
+// (
+//     .clock_a(clk), .address_a(m_a[9:0]), .data_a(m_do), .wren_a(m_cram && !m_wr_n), .q_a(cram_q),
+//     .clock_b(clk), .address_b(v_tile_a), .q_b(v_attr)
+// );
+assign pr_i[4].a_addr = {5'd0, m_a[9:0]};  assign pr_i[4].a_d = m_do;  assign pr_i[4].a_we = m_cram && !m_wr_n;
+assign pr_i[4].b_addr = {5'd0, v_tile_a};  assign pr_i[4].b_d = 8'd0;  assign pr_i[4].b_we = 1'b0;
+assign cram_q = pr_o[4].a_q;  assign v_attr = pr_o[4].b_q;
 
 logic [6:0] spr_e;
 logic [7:0] spr_q[4];                                         // y, x, attr, code
 genvar l;
+// RAMPOOL-2026-10-27: original lane RAMs below; now pool blocks 5-8
+// generate
+//     for (l = 0; l < 4; l++) begin : spr_lane
+//         dpram_dc #(.widthad_a(7)) ram
+//         (
+//             .clock_a(clk), .address_a(m_a[8:2]), .data_a(m_do), .wren_a(m_spr && !m_wr_n && m_a[1:0] == l),
+//             .clock_b(clk), .address_b(spr_e), .q_b(spr_q[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 4; l++) begin : spr_lane
-        dpram_dc #(.widthad_a(7)) ram
-        (
-            .clock_a(clk), .address_a(m_a[8:2]), .data_a(m_do), .wren_a(m_spr && !m_wr_n && m_a[1:0] == l),
-            .clock_b(clk), .address_b(spr_e), .q_b(spr_q[l])
-        );
+        assign pr_i[5+l].a_addr = {8'd0, m_a[8:2]};  assign pr_i[5+l].a_d = m_do;  assign pr_i[5+l].a_we = m_spr && !m_wr_n && m_a[1:0] == l;
+        assign pr_i[5+l].b_addr = {8'd0, spr_e};     assign pr_i[5+l].b_d = 8'd0;  assign pr_i[5+l].b_we = 1'b0;
+        assign spr_q[l] = pr_o[5+l].b_q;
     end
 endgenerate
 
@@ -527,15 +557,25 @@ logic [255:0] lb_taken0 = '0, lb_taken1 = '0;
 logic [255:0] lb_vis0   = '0, lb_vis1   = '0;
 wire  [255:0] lb_taken_b = build_buf ? lb_taken1 : lb_taken0;
 
+// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 9 / 10
+// generate
+//     for (l = 0; l < 2; l++) begin : lbuf
+//         dpram_dc #(.widthad_a(8)) ram
+//         (
+//             .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
+//             .clock_b(clk), .address_b(lb_ra), .q_b(lb_q[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        dpram_dc #(.widthad_a(8)) ram
-        (
-            .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
-            .clock_b(clk), .address_b(lb_ra), .q_b(lb_q[l])
-        );
+        assign pr_i[9+l].a_addr = {7'd0, lb_wa};  assign pr_i[9+l].a_d = lb_wd;  assign pr_i[9+l].a_we = lb_we && build_buf == l;
+        assign pr_i[9+l].b_addr = {7'd0, lb_ra};  assign pr_i[9+l].b_d = 8'd0;   assign pr_i[9+l].b_we = 1'b0;
+        assign lb_q[l] = pr_o[9+l].b_q;
     end
 endgenerate
+assign pr_i[3] = '0;
+assign pr_i[12:11] = '0;
 
 typedef enum logic [2:0] {SP_IDLE, SP_ADDR, SP_CHK, SP_FETCH, SP_PIX} sp_state_t;
 sp_state_t   sp_st = SP_IDLE;
@@ -687,12 +727,16 @@ always_ff @(posedge clk) begin
     end
 end
 
+// ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block
+// logic [7:0] pal_q;
+// dpram_dc #(.widthad_a(8)) color_prom
+// (
+//     .clock_a(clk), .address_a(prom_a), .data_a(prom_d), .wren_a(prom_wr),
+//     .clock_b(clk), .address_b(s3_idx), .q_b(pal_q)
+// );
 logic [7:0] pal_q;
-dpram_dc #(.widthad_a(8)) color_prom
-(
-    .clock_a(clk), .address_a(prom_a), .data_a(prom_d), .wren_a(prom_wr),
-    .clock_b(clk), .address_b(s3_idx), .q_b(pal_q)
-);
+assign prom_a_o = s3_idx;
+assign pal_q    = prom_d_i;
 
 // MAME palette: R 0x23/0x4b/0x91 on bits 5-7, G on bits 2-4, B 0x52/0xad on bits 0-1
 wire [7:0] c_r = (pal_q[5] ? 8'h23 : 8'h00) + (pal_q[6] ? 8'h4B : 8'h00) + (pal_q[7] ? 8'h91 : 8'h00);

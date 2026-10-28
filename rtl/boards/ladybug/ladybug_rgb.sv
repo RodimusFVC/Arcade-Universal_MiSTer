@@ -56,9 +56,12 @@ module ladybug_rgb (
   output logic [1:0] rgb_b_o,
   output logic [8:1] rgb_n_o,     // Universal: latched inverted PROM byte (8203 board wires it differently)
   output logic       bg_o,        // Universal: pixel is background (no char pen, no sprite)
-  // PROM download interface (replaces dn_* ports)
-  input  logic       prom_wr_i,
-  input  logic [4:0] prom_a_i,
+  // ROMPOOL-2026-10-27: the K1 PROM is a dispatcher ROM block (universal_board.sv); originals:
+  // // PROM download interface (replaces dn_* ports)
+  // input  logic       prom_wr_i,
+  // input  logic [4:0] prom_a_i,
+  // input  logic [7:0] prom_d_i
+  output logic [4:0] prom_a_o,
   input  logic [7:0] prom_d_i
 );
 
@@ -91,20 +94,23 @@ module ladybug_rgb (
   // ---------------------------------------------------------------------------
   // The RGB Conversion PROM
   // ---------------------------------------------------------------------------
-  logic [7:0] rgb_prom_qa_unused_s;
-  dpram_dc #(.widthad_a(5), .width_a(8)) rgb_prom_b (
-    .clock_a   (clk_20mhz_i),
-    .address_a (prom_a_i),
-    .data_a    (prom_d_i),
-    .wren_a    (prom_wr_i),
-    .q_a       (rgb_prom_qa_unused_s),
-
-    .clock_b   (clk_20mhz_i),
-    .address_b (a_s),
-    .data_b    (8'd0),
-    .wren_b    (1'b0),
-    .q_b       (rgb_s)
-  );
+  // ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block (read port exported)
+  //   logic [7:0] rgb_prom_qa_unused_s;
+  //   dpram_dc #(.widthad_a(5), .width_a(8)) rgb_prom_b (
+  //     .clock_a   (clk_20mhz_i),
+  //     .address_a (prom_a_i),
+  //     .data_a    (prom_d_i),
+  //     .wren_a    (prom_wr_i),
+  //     .q_a       (rgb_prom_qa_unused_s),
+  //
+  //     .clock_b   (clk_20mhz_i),
+  //     .address_b (a_s),
+  //     .data_b    (8'd0),
+  //     .wren_b    (1'b0),
+  //     .q_b       (rgb_s)
+  //   );
+  assign prom_a_o = a_s;
+  assign rgb_s    = prom_d_i;
 
   // ---------------------------------------------------------------------------
   // Process rgb_latch

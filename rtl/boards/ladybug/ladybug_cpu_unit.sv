@@ -62,7 +62,11 @@ module ladybug_cpu_unit
     input  logic [15:0] hs_address,
     output logic  [7:0] hs_data_out,
     input  logic  [7:0] hs_data_in,
-    input  logic        hs_write
+    input  logic        hs_write,
+
+    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+    output ram_pool_pkg::pram_i_t pr_i,
+    input  ram_pool_pkg::pram_o_t pr_o
 );
 
 logic        wait_n_s;
@@ -111,7 +115,9 @@ ladybug_cpu_ram cpu_ram_b
     .cs2_n_i   (1'b0),
     .we2_n_i   (~hs_write),
     .d2_i      (hs_data_in),
-    .d2_o      (hs_data_out)
+    .d2_o      (hs_data_out),
+    .pr_i      (pr_i),
+    .pr_o      (pr_o)
 );
 
 ladybug_addr_dec addr_dec_b

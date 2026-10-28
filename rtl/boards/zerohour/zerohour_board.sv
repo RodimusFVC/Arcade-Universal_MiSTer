@@ -69,9 +69,17 @@ module zerohour_board
     input  logic               hs_write,
 
     // RAMPOOL-2026-10-23: work RAM / video RAM live in board RAM pool blocks 0 / 1 (universal_board.sv)
-    output ram_pool_pkg::pram_i_t pr0_i, pr1_i,
-    input  ram_pool_pkg::pram_o_t pr0_o, pr1_o
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
+    // Originals: output pram_i_t pr0_i, pr1_i / input pram_o_t pr0_o, pr1_o (now pr_i[0] / pr_i[1], aliased below)
+    output ram_pool_pkg::pram_i_t [12:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
+
+// RAMPOOL-2026-10-27: pr0 / pr1 are pool blocks 0 / 1 (the ports used to be pr0_i, pr1_i, pr0_o, pr1_o)
+ram_pool_pkg::pram_i_t pr0_i, pr1_i;
+ram_pool_pkg::pram_o_t pr0_o, pr1_o;
+assign pr_i[0] = pr0_i;  assign pr_i[1] = pr1_i;
+assign pr0_o = pr_o[0];  assign pr1_o = pr_o[1];
 
 // ------------------------------------------------------------------ clocks
 logic [1:0] ph = 2'd0;
@@ -210,13 +218,21 @@ assign pr1_i.a_we   = pause ? hs_vid & hs_write : vram_cs && wr;
 assign pr1_i.b_addr = {5'd0, vram_va};  assign pr1_i.b_d = 8'd0;  assign pr1_i.b_we = 1'b0;
 assign vram_q = pr1_o.a_q;  assign vram_vq = pr1_o.b_q;
 genvar l;
+// RAMPOOL-2026-10-27: original lane RAMs below; now pool blocks 4-7
+// generate
+//     for (l = 0; l < 4; l++) begin : spr_lane
+//         dpram_dc #(.widthad_a(8)) ram
+//         (
+//             .clock_a(clk), .address_a(a[9:2]), .data_a(dout), .wren_a(spr_cs && wr && a[1:0] == l), .q_a(spr_q[l]),
+//             .clock_b(clk), .address_b(spr_ve), .q_b(spr_vq[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 4; l++) begin : spr_lane
-        dpram_dc #(.widthad_a(8)) ram
-        (
-            .clock_a(clk), .address_a(a[9:2]), .data_a(dout), .wren_a(spr_cs && wr && a[1:0] == l), .q_a(spr_q[l]),
-            .clock_b(clk), .address_b(spr_ve), .q_b(spr_vq[l])
-        );
+        assign pr_i[4+l].a_addr = {7'd0, a[9:2]};  assign pr_i[4+l].a_d = dout;  assign pr_i[4+l].a_we = spr_cs && wr && a[1:0] == l;
+        assign pr_i[4+l].b_addr = {7'd0, spr_ve};  assign pr_i[4+l].b_d = 8'd0;  assign pr_i[4+l].b_we = 1'b0;
+        assign spr_q[l] = pr_o[4+l].a_q;  assign spr_vq[l] = pr_o[4+l].b_q;
     end
 endgenerate
 
@@ -342,15 +358,26 @@ logic       lb_clr;
 logic       build_buf = 1'b0;
 wire        disp_buf;
 
+// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 8 / 9
+// generate
+//     for (l = 0; l < 2; l++) begin : lbuf
+//         dpram_dc #(.widthad_a(8)) ram
+//         (
+//             .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
+//             .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        dpram_dc #(.widthad_a(8)) ram
-        (
-            .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
-            .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q[l])
-        );
+        assign pr_i[8+l].a_addr = {7'd0, lb_wa};  assign pr_i[8+l].a_d = lb_wd;  assign pr_i[8+l].a_we = lb_we && build_buf == l;
+        assign pr_i[8+l].b_addr = {7'd0, lb_ra};  assign pr_i[8+l].b_d = 8'd0;   assign pr_i[8+l].b_we = lb_clr && disp_buf == l;
+        assign lb_q[l] = pr_o[8+l].b_q;
     end
 endgenerate
+assign pr_i[3] = '0;
+assign pr_i[12:10] = '0;
+assign pr_i[2] = '0;
 
 typedef enum logic [3:0] {B_IDLE, B_BUL, B_BPX, B_BNEXT, B_SCAN, B_SCAN_W, B_SCAN_R, B_ENT, B_ENT_W, B_ENT_R,
                           B_ROWA_W, B_ROWA_R, B_ROWB_W, B_ROWB_R, B_PIX} bstate_t;

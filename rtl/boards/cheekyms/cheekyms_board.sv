@@ -60,9 +60,17 @@ module cheekyms_board
     input  logic               hs_write,
 
     // RAMPOOL-2026-10-23: work RAM / video RAM live in board RAM pool blocks 0 / 1 (universal_board.sv)
-    output ram_pool_pkg::pram_i_t pr0_i, pr1_i,
-    input  ram_pool_pkg::pram_o_t pr0_o, pr1_o
+    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_board.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
+    // Originals: output pram_i_t pr0_i, pr1_i / input pram_o_t pr0_o, pr1_o (now pr_i[0] / pr_i[1], aliased below)
+    output ram_pool_pkg::pram_i_t [12:0] pr_i,
+    input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
+
+// RAMPOOL-2026-10-27: pr0 / pr1 are pool blocks 0 / 1 (the ports used to be pr0_i, pr1_i, pr0_o, pr1_o)
+ram_pool_pkg::pram_i_t pr0_i, pr1_i;
+ram_pool_pkg::pram_o_t pr0_o, pr1_o;
+assign pr_i[0] = pr0_i;  assign pr_i[1] = pr1_i;
+assign pr0_o = pr_o[0];  assign pr1_o = pr_o[1];
 
 // ------------------------------------------------------------------ clocks
 // pixel: 19.656 MHz * 5408 / 19656 = 5.408 MHz; CPU edges: 19.656 MHz * 625 / 2457 = 5 MHz (2.5 MHz CPU)
@@ -208,15 +216,26 @@ logic       build_buf = 1'b0;
 wire        disp_buf;
 
 genvar l;
+// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 4 / 5
+// generate
+//     for (l = 0; l < 2; l++) begin : lbuf
+//         dpram_dc #(.widthad_a(8)) ram
+//         (
+//             .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
+//             .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q[l])
+//         );
+//     end
+// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        dpram_dc #(.widthad_a(8)) ram
-        (
-            .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
-            .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q[l])
-        );
+        assign pr_i[4+l].a_addr = {7'd0, lb_wa};  assign pr_i[4+l].a_d = lb_wd;  assign pr_i[4+l].a_we = lb_we && build_buf == l;
+        assign pr_i[4+l].b_addr = {7'd0, lb_ra};  assign pr_i[4+l].b_d = 8'd0;   assign pr_i[4+l].b_we = lb_clr && disp_buf == l;
+        assign lb_q[l] = pr_o[4+l].b_q;
     end
 endgenerate
+assign pr_i[3] = '0;
+assign pr_i[12:6] = '0;
+assign pr_i[2] = '0;
 
 typedef enum logic [2:0] {S_IDLE, S_SPR, S_PIECE, S_ROW_W, S_ROW_R, S_PIX} sstate_t;
 sstate_t    ss = S_IDLE;

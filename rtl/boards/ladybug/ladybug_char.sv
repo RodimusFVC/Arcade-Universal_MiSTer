@@ -92,7 +92,11 @@ module ladybug_char (
   input  logic [15:0] hs_address,
   output logic [7:0]  hs_data_out,
   input  logic [7:0]  hs_data_in,
-  input  logic        hs_write
+  input  logic        hs_write,
+
+  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+  output ram_pool_pkg::pram_i_t [1:0] pr_i,
+  input  ram_pool_pkg::pram_o_t [1:0] pr_o
 );
 
   logic       flip_screen_q;
@@ -518,7 +522,9 @@ module ladybug_char (
     .cs2_n_i   (1'b0),
     .we2_n_i   (~hs_write),
     .d2_i      (hs_data_in),
-    .d2_o      (hs_data_out)
+    .d2_o      (hs_data_out),
+    .pr_i      (pr_i[0]),
+    .pr_o      (pr_o[0])
   );
   // ---------------------------------------------------------------------------
   // The color RAM
@@ -530,7 +536,9 @@ module ladybug_char (
     .cs_n_i   (col_ram_cs_n_s),
     .we_n_i   (col_ram_we_n_s),
     .d_i      (d_from_cpu_i[3:0]),
-    .d_o      (d_from_col_ram_s)
+    .d_o      (d_from_col_ram_s),
+    .pr_i     (pr_i[1]),
+    .pr_o     (pr_o[1])
   );
 
   // ---------------------------------------------------------------------------

@@ -285,12 +285,13 @@ dpram_dc #(.widthad_a(15)) rom_sub
 );
 assign dc_sub_d = rom_sub_d;
 
-// Space Raider grid RAM (HD6148P @ D6): written by the sub CPU, read by the overlay
-dpram_dc #(.widthad_a(8)) ram_grid
-(
-    .clock_a(clk), .address_a(grid_a), .data_a(grid_d), .wren_a(grid_wr),
-    .clock_b(clk), .address_b(grid_ram_a), .q_b(grid_ram_d)
-);
+// RAMPOOL-2026-10-27: original below; now pool block 12 (Board RAM pool section)
+// // Space Raider grid RAM (HD6148P @ D6): written by the sub CPU, read by the overlay
+// dpram_dc #(.widthad_a(8)) ram_grid
+// (
+//     .clock_a(clk), .address_a(grid_a), .data_a(grid_d), .wren_a(grid_wr),
+//     .clock_b(clk), .address_b(grid_ram_a), .q_b(grid_ram_d)
+// );
 
 // 0x18000-0x19FFF as 4 byte lanes: Mr. Do! sprite ROM (one 16-pixel row per read); Space Raider grid ROM
 // (0x18000-0x18FFF, byte-wide: lane picked by the registered address)
@@ -384,10 +385,47 @@ generate
 endgenerate
 assign md_spr_d = dc_spr_d[31:0];
 
-// Colour PROMs live in the video unit
+// ROMPOOL-2026-10-27: the Lady Bug colour PROMs lived in the video unit (written by prom_a_i / prom_d_i / prom_*_wr);
+// they are dispatcher ROM blocks now. Load decode by index-0 address only (0xC000-0xC07F: K1 0x00, F4 0x20, C4 0x40).
 wire prom_k1_wr = load_prom && ioctl_addr[6:5] == 2'd0;
 wire prom_f4_wr = load_prom && ioctl_addr[6:5] == 2'd1;
 wire prom_c4_wr = load_prom && ioctl_addr[6:5] == 2'd2;
+logic [4:0] lb_k1_a, lb_f4_a, lb_c4_a;
+logic [7:0] lb_k1_d, lb_f4_d, lb_c4_d;
+
+dpram_dc #(.widthad_a(5)) rom_k1
+(
+    .clock_a(clk), .address_a(ioctl_addr[4:0]), .data_a(ioctl_dout), .wren_a(prom_k1_wr),
+    .clock_b(clk), .address_b(lb_k1_a), .q_b(lb_k1_d)
+);
+dpram_dc #(.widthad_a(5)) rom_f4
+(
+    .clock_a(clk), .address_a(ioctl_addr[4:0]), .data_a(ioctl_dout), .wren_a(prom_f4_wr),
+    .clock_b(clk), .address_b(lb_f4_a), .q_b(lb_f4_d)
+);
+dpram_dc #(.widthad_a(5)) rom_c4
+(
+    .clock_a(clk), .address_a(ioctl_addr[4:0]), .data_a(ioctl_dout), .wren_a(prom_c4_wr),
+    .clock_b(clk), .address_b(lb_c4_a), .q_b(lb_c4_d)
+);
+
+// Mr. Do's Castle colour PROM (256 x 8, was color_prom in docastle_board): read once per pixel by the board
+logic [7:0] dc_prom_a, dc_prom_d;
+dpram_dc #(.widthad_a(8)) rom_dcprom
+(
+    .clock_a(clk), .address_a(ioctl_addr[7:0]), .data_a(ioctl_dout), .wren_a(load_dc_prom),
+    .clock_b(clk), .address_b(dc_prom_a), .q_b(dc_prom_d)
+);
+
+// RAMPOOL-2026-10-27: pool buses declared here, ahead of every board that uses them
+localparam RAM_BLOCKS = 13;
+ram_pool_pkg::pram_i_t [RAM_BLOCKS-1:0] lb_pr_i, md_pr_i, dc_pr_i, zh_pr_i, cm_pr_i, cs_pr_i, cs_pr_b_i, tm_pr_i, pool_i;
+ram_pool_pkg::pram_o_t [RAM_BLOCKS-1:0] pool_o;
+ram_pool_pkg::pram_i_t [2:0] fb_pr_i;                         // the CRT Flip frame buffer = blocks 0-2
+ram_pool_pkg::pram_i_t [8:0] lb_ram_i;                        // Lady Bug machine RAMs -> blocks 3-11
+logic        cs_grid_we;
+logic  [7:0] cs_grid_wd;
+logic [12:0] cs_grid_wa, cs_grid_ra;
 
 /////////////////////////////  Shared CPU / sound chip pool  /////////////////////////////
 // Only one board runs at a time, so each CPU / sound chip is instanced once here and driven by the active board's
@@ -463,6 +501,91 @@ generate
     end
 endgenerate
 
+// CHIPPOOL-2026-10-27: the remaining chips, formerly private to a board.
+// mc6845_0: Mr. Do's Castle CRTC, Cosmic Guerilla / Get A Way CRTC (never run together; same module, no generics)
+chip_pool_pkg::mc6845_i_t dc_mc6845_0_i, tm_mc6845_0_i, mc6845_0_i;
+chip_pool_pkg::mc6845_o_t mc6845_0_o;
+assign mc6845_0_i = tms ? tm_mc6845_0_i : dc_mc6845_0_i;
+
+wire [7:0] mc6845_0_do;
+wire       mc6845_0_vs, mc6845_0_hs, mc6845_0_vbl, mc6845_0_hbl, mc6845_0_de;
+wire [13:0] mc6845_0_ma;
+wire  [4:0] mc6845_0_ra;
+
+mc6845 mc6845_0
+(
+    .CLOCK(clk), .CLKEN(mc6845_0_i.clken), .nRESET(mc6845_0_i.reset_n),
+    .ENABLE(mc6845_0_i.enable), .R_nW(mc6845_0_i.r_nw), .RS(mc6845_0_i.rs), .DI(mc6845_0_i.di), .DO(mc6845_0_do),
+    .VSYNC(mc6845_0_vs), .HSYNC(mc6845_0_hs), .VBLANK(mc6845_0_vbl), .HBLANK(mc6845_0_hbl), .DE(mc6845_0_de),
+    .CURSOR(), .LPSTB(1'b0), .MA(mc6845_0_ma), .RA(mc6845_0_ra)
+);
+
+assign mc6845_0_o.dout = mc6845_0_do;      assign mc6845_0_o.vsync = mc6845_0_vs;   assign mc6845_0_o.hsync = mc6845_0_hs;
+assign mc6845_0_o.vblank = mc6845_0_vbl;   assign mc6845_0_o.hblank = mc6845_0_hbl; assign mc6845_0_o.de = mc6845_0_de;
+assign mc6845_0_o.ma = mc6845_0_ma;        assign mc6845_0_o.ra = mc6845_0_ra;
+
+// jt5205_0: Mr. Do's Castle (Indoor Soccer MSM5205, S = 2); jotego's jt5205 unmodified
+chip_pool_pkg::jt5205_i_t dc_jt5205_0_i, jt5205_0_i;
+chip_pool_pkg::jt5205_o_t jt5205_0_o;
+assign jt5205_0_i = dc_jt5205_0_i;
+
+wire signed [11:0] jt5205_0_sound;
+wire               jt5205_0_irq, jt5205_0_vclk;
+
+jt5205 jt5205_0
+(
+    .rst(jt5205_0_i.rst), .clk(clk), .cen(jt5205_0_i.cen), .sel(jt5205_0_i.sel), .din(jt5205_0_i.din),
+    .sound(jt5205_0_sound), .sample(), .irq(jt5205_0_irq), .vclk_o(jt5205_0_vclk)
+);
+
+assign jt5205_0_o.sound = jt5205_0_sound;  assign jt5205_0_o.irq = jt5205_0_irq;  assign jt5205_0_o.vclk = jt5205_0_vclk;
+
+// tms9900_0: Cosmic Guerilla (TMS9980A) and Get A Way (TMS9900); cycle_clks_g stays at the VHDL default 8
+chip_pool_pkg::tms9900_i_t tm_tms9900_0_i, tms9900_0_i;
+chip_pool_pkg::tms9900_o_t tms9900_0_o;
+assign tms9900_0_i = tm_tms9900_0_i;
+
+wire [15:0] tms9900_0_addr, tms9900_0_dout;
+wire        tms9900_0_rd, tms9900_0_wr, tms9900_0_iaq, tms9900_0_as, tms9900_0_int_ack, tms9900_0_cruout, tms9900_0_cruclk, tms9900_0_holda;
+
+tms9900 tms9900_0
+(
+    .clk            (clk),
+    .reset          (tms9900_0_i.reset),
+    .addr_out       (tms9900_0_addr),
+    .data_in        (tms9900_0_i.data_in),
+    .data_out       (tms9900_0_dout),
+    .rd             (tms9900_0_rd),
+    .wr             (tms9900_0_wr),
+    .ready          (tms9900_0_i.ready),
+    .iaq            (tms9900_0_iaq),
+    .as             (tms9900_0_as),
+    .alu_debug_arg1 (),
+    .alu_debug_arg2 (),
+    .cpu_debug_out  (),
+    .mult_debug_out (),
+    .int_req        (tms9900_0_i.int_req),
+    .ic03           (tms9900_0_i.ic03),
+    .int_ack        (tms9900_0_int_ack),
+    .cruin          (tms9900_0_i.cruin),
+    .cruout         (tms9900_0_cruout),
+    .cruclk         (tms9900_0_cruclk),
+    .hold           (tms9900_0_i.hold),
+    .holda          (tms9900_0_holda),
+    .waits          (8'd0),
+    .scratch_en     (1'b0),
+    .stuck          (),
+    .turbo          (1'b0),
+    .byte_bus       (tms9900_0_i.byte_bus),
+    .ir_step2       (tms9900_0_i.ir_step2)
+);
+
+assign tms9900_0_o.addr_out = tms9900_0_addr;  assign tms9900_0_o.data_out = tms9900_0_dout;
+assign tms9900_0_o.rd = tms9900_0_rd;          assign tms9900_0_o.wr = tms9900_0_wr;
+assign tms9900_0_o.iaq = tms9900_0_iaq;        assign tms9900_0_o.as = tms9900_0_as;
+assign tms9900_0_o.int_ack = tms9900_0_int_ack; assign tms9900_0_o.cruout = tms9900_0_cruout;
+assign tms9900_0_o.cruclk = tms9900_0_cruclk;  assign tms9900_0_o.holda = tms9900_0_holda;
+
 /////////////////////////////  Lady Bug  /////////////////////////////
 
 logic [1:0] lb_r, lb_g, lb_b;
@@ -482,6 +605,8 @@ ladybug_machine ladybug
     .z80pa_1_o       (z80pa_1_o),
     .sn76489_i       (lb_sn76489_i),
     .sn76489_o       (sn76489_o),
+    .pr_i            (lb_ram_i),
+    .pr_o            (pool_o[11:3]),
     .clk_20mhz_i     (clk),
     .ext_res_n_i     (~reset & ~mrdo & ~dcastle & ~zhour & ~cheeky & ~cosmic & ~tms),
     .pause_i         (pause),
@@ -523,11 +648,18 @@ ladybug_machine ladybug
     .rom_sub_a_o     (lb_sub_a),
     .rom_sub_d_i     (rom_sub_d),
 
-    .prom_a_i        (ioctl_addr[4:0]),
-    .prom_d_i        (ioctl_dout),
-    .prom_k1_wr_i    (prom_k1_wr),
-    .prom_f4_wr_i    (prom_f4_wr),
-    .prom_c4_wr_i    (prom_c4_wr),
+    // ROMPOOL-2026-10-27: originals
+    // .prom_a_i        (ioctl_addr[4:0]),
+    // .prom_d_i        (ioctl_dout),
+    // .prom_k1_wr_i    (prom_k1_wr),
+    // .prom_f4_wr_i    (prom_f4_wr),
+    // .prom_c4_wr_i    (prom_c4_wr),
+    .prom_k1_a_o     (lb_k1_a),
+    .prom_k1_d_i     (lb_k1_d),
+    .prom_f4_a_o     (lb_f4_a),
+    .prom_f4_d_i     (lb_f4_d),
+    .prom_c4_a_o     (lb_c4_a),
+    .prom_c4_d_i     (lb_c4_d),
 
     .hs_address      (hs_address),
     .hs_data_out     (lb_hs_data),
@@ -577,27 +709,66 @@ sraider_overlay overlay
 //   block 1: flip buffer 08000-0FFFF | Mr. Do! fg code | Castle sub RAM | Zero Hour / Cheeky Mouse video RAM |
 //            Devil Zone grid | TMS plane 1
 //   block 2: flip buffer 10000-167FF | Mr. Do! fg attr | Castle video RAM | TMS plane 2
-ram_pool_pkg::pram_i_t [2:0] lb_pr_i, md_pr_i, dc_pr_i, zh_pr_i, cm_pr_i, cs_pr_i, tm_pr_i, pool_i;
-ram_pool_pkg::pram_o_t [2:0] pool_o;
+// RAMPOOL-2026-10-27: original three-block pool below
+// ram_pool_pkg::pram_i_t [2:0] lb_pr_i, md_pr_i, dc_pr_i, zh_pr_i, cm_pr_i, cs_pr_i, tm_pr_i, pool_i;
+// ram_pool_pkg::pram_o_t [2:0] pool_o;
+// assign pool_i = mrdo ? md_pr_i : dcastle ? dc_pr_i : zhour ? zh_pr_i : cheeky ? cm_pr_i : cosmic ? cs_pr_i :
+//                 tms ? tm_pr_i : lb_pr_i;
+// generate
+//     for (ln = 0; ln < 3; ln++) begin : rpool
+//         dpram_dc #(.widthad_a(15)) ram
+//         (
+//             .clock_a(clk), .address_a(pool_i[ln].a_addr), .data_a(pool_i[ln].a_d), .wren_a(pool_i[ln].a_we),
+//             .q_a(pool_o[ln].a_q),
+//             .clock_b(clk), .address_b(pool_i[ln].b_addr), .data_b(pool_i[ln].b_d), .wren_b(pool_i[ln].b_we),
+//             .q_b(pool_o[ln].b_q)
+//         );
+//     end
+// endgenerate
+// // Devil Zone grid (the Cosmic board drives block 0 itself)
+// assign cs_pr_i[1].a_addr = {2'd0, cs_grid_wa};  assign cs_pr_i[1].a_d = cs_grid_wd;  assign cs_pr_i[1].a_we = cs_grid && cs_grid_we;
+// assign cs_pr_i[1].b_addr = {2'd0, cs_grid_ra};  assign cs_pr_i[1].b_d = 8'd0;        assign cs_pr_i[1].b_we = 1'b0;
+// assign cs_pr_i[2] = '0;
+// assign zh_pr_i[2] = '0;
+// assign cm_pr_i[2] = '0;
+// RAMPOOL-2026-10-27: the pool grew from 3 to 13 blocks - every board RAM that was private now lives here (blocks 3-12 are
+// small, one M10K each except block 3). Map (a board's RAMs never share a block; the sound board runs with its logic board
+// on different blocks):
+//   block  3 (4K): Lady Bug cpu RAM | Cosmic Guerilla / Get A Way work RAM (2K)
+//   block  4 (1K): LB char RAM | Mr. Do! bg attr | Castle colour RAM | Zero Hour sprite lane 0 | Cheeky Mouse lbuf 0 | Cosmic lbuf 0 | TMS score plane 0
+//   block  5 (1K): LB char colour RAM | Mr. Do! bg code | Castle sprite lane 0 | ZH lane 1 | Cheeky lbuf 1 | Cosmic lbuf 1 | TMS score plane 1
+//   block  6 (1K): LB sprite RAM | Mr. Do! lbuf 0 | Castle sprite lane 1 | ZH lane 2 | TMS score plane 2
+//   block  7 (1K): LB sprite VRAM A6 | Mr. Do! lbuf 1 | Castle lane 2 | ZH lane 3
+//   block  8 (1K): LB sprite VRAM B6 | Mr. Do! sprite lane 0 | Castle lane 3 | ZH lbuf 0
+//   block  9 (1K): LB sprite VRAM C6 | Mr. Do! sprite lane 1 | Castle lbuf 0 | ZH lbuf 1
+//   block 10 (1K): LB sprite VRAM D6 | Mr. Do! sprite lane 2 | Castle lbuf 1
+//   block 11 (1K): Space Raider / Mrs. Dynamite sub RAM | Mr. Do! sprite lane 3
+//   block 12 (1K): Space Raider / Mrs. Dynamite grid RAM (256 bytes used)
 assign pool_i = mrdo ? md_pr_i : dcastle ? dc_pr_i : zhour ? zh_pr_i : cheeky ? cm_pr_i : cosmic ? cs_pr_i :
                 tms ? tm_pr_i : lb_pr_i;
+assign lb_pr_i[2:0]  = fb_pr_i;
+assign lb_pr_i[11:3] = lb_ram_i;
 generate
-    for (ln = 0; ln < 3; ln++) begin : rpool
-        dpram_dc #(.widthad_a(15)) ram
+    for (ln = 0; ln < RAM_BLOCKS; ln++) begin : rpool
+        localparam int AW = (ln < 3) ? 15 : (ln == 3) ? 12 : 10;
+        dpram_dc #(.widthad_a(AW)) ram
         (
-            .clock_a(clk), .address_a(pool_i[ln].a_addr), .data_a(pool_i[ln].a_d), .wren_a(pool_i[ln].a_we),
+            .clock_a(clk), .address_a(pool_i[ln].a_addr[AW-1:0]), .data_a(pool_i[ln].a_d), .wren_a(pool_i[ln].a_we),
             .q_a(pool_o[ln].a_q),
-            .clock_b(clk), .address_b(pool_i[ln].b_addr), .data_b(pool_i[ln].b_d), .wren_b(pool_i[ln].b_we),
+            .clock_b(clk), .address_b(pool_i[ln].b_addr[AW-1:0]), .data_b(pool_i[ln].b_d), .wren_b(pool_i[ln].b_we),
             .q_b(pool_o[ln].b_q)
         );
     end
 endgenerate
-// Devil Zone grid (the Cosmic board drives block 0 itself)
+// Devil Zone grid (the Cosmic board drives block 0 itself; block 1 is the grid, gated by the variant here)
+assign cs_pr_i[0]    = cs_pr_b_i[0];
 assign cs_pr_i[1].a_addr = {2'd0, cs_grid_wa};  assign cs_pr_i[1].a_d = cs_grid_wd;  assign cs_pr_i[1].a_we = cs_grid && cs_grid_we;
 assign cs_pr_i[1].b_addr = {2'd0, cs_grid_ra};  assign cs_pr_i[1].b_d = 8'd0;        assign cs_pr_i[1].b_we = 1'b0;
-assign cs_pr_i[2] = '0;
-assign zh_pr_i[2] = '0;
-assign cm_pr_i[2] = '0;
+assign cs_pr_i[RAM_BLOCKS-1:2] = cs_pr_b_i[RAM_BLOCKS-1:2];
+// Space Raider / Mrs. Dynamite grid RAM (HD6148P @ D6): written by the sub CPU, read by the overlay (block 12, no read-back on A)
+assign lb_pr_i[12].a_addr = {7'd0, grid_a};      assign lb_pr_i[12].a_d = grid_d;  assign lb_pr_i[12].a_we = grid_wr;
+assign lb_pr_i[12].b_addr = {7'd0, grid_ram_a};  assign lb_pr_i[12].b_d = 8'd0;    assign lb_pr_i[12].b_we = 1'b0;
+assign grid_ram_d = pool_o[12].b_q;
 
 crt_flip_fb flip_fb
 (
@@ -636,8 +807,8 @@ crt_flip_fb flip_fb
     .alt_we  (1'b0),
     .alt_ra  (17'd0),
     .alt_q   (),
-    .pr_i    (lb_pr_i),
-    .pr_o    (pool_o)
+    .pr_i    (fb_pr_i),
+    .pr_o    (pool_o[2:0])
 );
 
 // colour code -> RGB (see sraider_overlay.sv); star colours from MAME sraider_palette
@@ -740,6 +911,10 @@ docastle_board docastle_b
     .z80pa_1_o    (z80pa_1_o),
     .sn76489_i    (dc_sn76489_i),
     .sn76489_o    (sn76489_o[3:0]),
+    .jt5205_0_i   (dc_jt5205_0_i),
+    .jt5205_0_o   (jt5205_0_o),
+    .mc6845_0_i   (dc_mc6845_0_i),
+    .mc6845_0_o   (mc6845_0_o),
     .clk          (clk),
     .reset        (reset | ~dcastle),
     .pause        (pause),
@@ -784,9 +959,12 @@ docastle_board docastle_b
     .rom_adpcm_a  (dc_adpcm_a),
     .rom_adpcm_d  (ddr_byte_q),
     .rom_adpcm_rdy(ddr_byte_rdy),
-    .prom_wr      (load_dc_prom),
-    .prom_a       (ioctl_addr[7:0]),
-    .prom_d       (ioctl_dout),
+    // ROMPOOL-2026-10-27: originals
+    // .prom_wr      (load_dc_prom),
+    // .prom_a       (ioctl_addr[7:0]),
+    // .prom_d       (ioctl_dout),
+    .prom_a_o     (dc_prom_a),
+    .prom_d_i     (dc_prom_d),
     .hs_address   (hs_address[12:0]),
     .hs_data_out  (dc_hs_data),
     .hs_data_in   (hs_data_in),
@@ -840,10 +1018,8 @@ zerohour_board zerohour_b
     .hs_data_out  (zh_hs_data),
     .hs_data_in   (hs_data_in),
     .hs_write     (hs_write & zhour),
-    .pr0_i        (zh_pr_i[0]),
-    .pr1_i        (zh_pr_i[1]),
-    .pr0_o        (pool_o[0]),
-    .pr1_o        (pool_o[1])
+    .pr_i         (zh_pr_i),
+    .pr_o         (pool_o)
 );
 
 /////////////////////////////  Cheeky Mouse  /////////////////////////////
@@ -889,10 +1065,8 @@ cheekyms_board cheekyms_b
     .hs_data_out  (cm_hs_data),
     .hs_data_in   (hs_data_in),
     .hs_write     (hs_write & cheeky),
-    .pr0_i        (cm_pr_i[0]),
-    .pr1_i        (cm_pr_i[1]),
-    .pr0_o        (pool_o[0]),
-    .pr1_o        (pool_o[1])
+    .pr_i         (cm_pr_i),
+    .pr_o         (pool_o)
 );
 
 cheekyms_sound cheekyms_snd
@@ -906,9 +1080,12 @@ cheekyms_sound cheekyms_snd
 
 /////////////////////////////  Cosmic boards  /////////////////////////////
 
-logic        cs_ce, cs_hs, cs_vs, cs_hbl, cs_vbl, cs_grid_we;
-logic  [7:0] cs_r, cs_g, cs_b, cs_grid_wd;
-logic [12:0] cs_grid_wa, cs_grid_ra;
+// RAMPOOL-2026-10-27: cs_grid_we / _wd / _wa / _ra are declared with the pool buses (used above this line); original:
+// logic        cs_ce, cs_hs, cs_vs, cs_hbl, cs_vbl, cs_grid_we;
+// logic  [7:0] cs_r, cs_g, cs_b, cs_grid_wd;
+// logic [12:0] cs_grid_wa, cs_grid_ra;
+logic        cs_ce, cs_hs, cs_vs, cs_hbl, cs_vbl;
+logic  [7:0] cs_r, cs_g, cs_b, cs_hs_data;
 logic [13:0] cs_snd;
 logic signed [15:0] cs_audio;
 wire   [7:0] cs_kind = variant - 8'd13;
@@ -960,8 +1137,8 @@ cosmic_board cosmic_b
     // RAMPOOL-2026-10-23: original
     // .grid_q       (dc_spr8_d)
     .grid_q       (pool_o[1].b_q),
-    .pr0_i        (cs_pr_i[0]),
-    .pr0_o        (pool_o[0]),
+    .pr_i         (cs_pr_b_i),
+    .pr_o         (pool_o),
     .hs_address   (hs_address),      // HSCORE-2026-10-23
     .hs_data_out  (cs_hs_data),
     .hs_data_in   (hs_data_in),
@@ -971,12 +1148,16 @@ cosmic_board cosmic_b
 /////////////////////////////  TMS99xx boards  /////////////////////////////
 
 logic        tm_ce, tm_hs, tm_vs, tm_hbl, tm_vbl;
-logic  [7:0] tm_r, tm_g, tm_b;
+logic  [7:0] tm_r, tm_g, tm_b, tm_hs_data;
 logic [15:0] tm_snd;
 logic signed [15:0] tm_audio;
 
 tms_board tms_b
 (
+    .tms9900_0_i  (tm_tms9900_0_i),
+    .tms9900_0_o  (tms9900_0_o),
+    .mc6845_0_i   (tm_mc6845_0_i),
+    .mc6845_0_o   (mc6845_0_o),
     .clk          (clk),
     .reset        (reset | ~tms),
     .pause        (pause),
@@ -1024,7 +1205,8 @@ assign video_vs     = tms ? tm_vs    : cosmic ? cs_vs    : cheeky ? cm_vs    : z
 assign audio        = tms ? tm_audio : cosmic ? cs_audio : cheeky ? cm_audio : zhour ? zh_audio : dcastle ? dc_audio : mrdo ? md_audio : lb_audio;
 // HSCORE-2026-10-23: original below
 // assign hs_data_out  = (tms | cosmic) ? 8'd0 : cheeky ? cm_hs_data : zhour ? zh_hs_data : dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
-logic [7:0] cs_hs_data, tm_hs_data;
+// FWDREF-2026-10-27: declarations moved up to the cs_ / tm_ blocks (were used above here)
+// logic [7:0] cs_hs_data, tm_hs_data;
 assign hs_data_out  = tms ? tm_hs_data : cosmic ? cs_hs_data : cheeky ? cm_hs_data : zhour ? zh_hs_data :
                       dcastle ? dc_hs_data : mrdo ? md_hs_data : lb_hs_data;
 

@@ -76,7 +76,11 @@ module ladybug_char_ram (
   input  logic       cs2_n_i,
   input  logic       we2_n_i,
   input  logic [7:0] d2_i,
-  output logic [7:0] d2_o
+  output logic [7:0] d2_o,
+
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  output ram_pool_pkg::pram_i_t pr_i,
+  input  ram_pool_pkg::pram_o_t pr_o
 );
 
   logic [7:0] d1_s;
@@ -90,19 +94,23 @@ module ladybug_char_ram (
   assign we1_s = ~cs1_n_i & ~we1_n_i & clk_en1_i;
   assign we2_s = ~cs2_n_i & ~we2_n_i & clk_en2_i;
 
-  dpram_dc #(.widthad_a(10), .width_a(8)) ram1_inst (
-    .address_a (a1_i),
-    .clock_a   (clk1_i),
-    .data_a    (d1_i),
-    .wren_a    (we1_s),
-    .q_a       (d1_s),
-
-    .address_b (a2_i),
-    .clock_b   (clk2_i),
-    .data_b    (d2_i),
-    .wren_b    (we2_s),
-    .q_b       (d2_s)
-  );
+  // RAMPOOL-2026-10-27: original instance
+  // dpram_dc #(.widthad_a(10), .width_a(8)) ram1_inst (
+  //   .address_a (a1_i),
+  //   .clock_a   (clk1_i),
+  //   .data_a    (d1_i),
+  //   .wren_a    (we1_s),
+  //   .q_a       (d1_s),
+  // 
+  //   .address_b (a2_i),
+  //   .clock_b   (clk2_i),
+  //   .data_b    (d2_i),
+  //   .wren_b    (we2_s),
+  //   .q_b       (d2_s)
+  // );
+  assign pr_i.a_addr = {5'd0, a1_i};  assign pr_i.a_d = d1_i;  assign pr_i.a_we = we1_s;
+  assign pr_i.b_addr = {5'd0, a2_i};  assign pr_i.b_d = d2_i;  assign pr_i.b_we = we2_s;
+  assign d1_s = pr_o.a_q;  assign d2_s = pr_o.b_q;
 
   // gate the data output for and'ing on CPU bus
   assign d1_o = (cs1_n_i == 1'b0) ? d1_s : '1;
@@ -137,7 +145,11 @@ module ladybug_sprite_ram (
   input  logic       cs_n_i,
   input  logic       we_n_i,
   input  logic [7:0] d_i,
-  output logic [7:0] d_o
+  output logic [7:0] d_o,
+
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  output ram_pool_pkg::pram_i_t pr_i,
+  input  ram_pool_pkg::pram_o_t pr_o
 );
 
   logic       we_s;
@@ -148,19 +160,23 @@ module ladybug_sprite_ram (
   // during write cycle
   assign we_s = ~cs_n_i & ~we_n_i & clk_en_i;
 
-  dpram_dc #(.widthad_a(10), .width_a(8)) ram_inst (
-    .address_a (a_i),
-    .clock_a   (clk_i),
-    .data_a    (d_i),
-    .wren_a    (we_s),
-    .q_a       (d_o),
-
-    .address_b (10'd0),
-    .clock_b   (clk_i),
-    .data_b    (8'd0),
-    .wren_b    (1'b0),
-    .q_b       (qb_unused_s)
-  );
+  // RAMPOOL-2026-10-27: original instance
+  // dpram_dc #(.widthad_a(10), .width_a(8)) ram_inst (
+  //   .address_a (a_i),
+  //   .clock_a   (clk_i),
+  //   .data_a    (d_i),
+  //   .wren_a    (we_s),
+  //   .q_a       (d_o),
+  // 
+  //   .address_b (10'd0),
+  //   .clock_b   (clk_i),
+  //   .data_b    (8'd0),
+  //   .wren_b    (1'b0),
+  //   .q_b       (qb_unused_s)
+  // );
+  assign pr_i.a_addr = {5'd0, a_i};  assign pr_i.a_d = d_i;  assign pr_i.a_we = we_s;
+  assign pr_i.b_addr = 15'd0;  assign pr_i.b_d = 8'd0;  assign pr_i.b_we = 1'b0;
+  assign d_o = pr_o.a_q;
 
 endmodule
 
@@ -192,7 +208,11 @@ module ladybug_char_col_ram (
   input  logic       cs_n_i,
   input  logic       we_n_i,
   input  logic [3:0] d_i,
-  output logic [3:0] d_o
+  output logic [3:0] d_o,
+
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  output ram_pool_pkg::pram_i_t pr_i,
+  input  ram_pool_pkg::pram_o_t pr_o
 );
 
   logic [3:0] d_s;
@@ -205,19 +225,23 @@ module ladybug_char_col_ram (
   // during write cycle
   assign we_s = ~cs_n_i & ~we_n_i & clk_en_i;
 
-  dpram_dc #(.widthad_a(10), .width_a(8)) ram_inst (
-    .address_a (a_i),
-    .clock_a   (clk_i),
-    .data_a    ({4'b0000, d_i}),
-    .wren_a    (we_s),
-    .q_a       (qa_s),
-
-    .address_b (10'd0),
-    .clock_b   (clk_i),
-    .data_b    (8'd0),
-    .wren_b    (1'b0),
-    .q_b       (qb_unused_s)
-  );
+  // RAMPOOL-2026-10-27: original instance
+  // dpram_dc #(.widthad_a(10), .width_a(8)) ram_inst (
+  //   .address_a (a_i),
+  //   .clock_a   (clk_i),
+  //   .data_a    ({4'b0000, d_i}),
+  //   .wren_a    (we_s),
+  //   .q_a       (qa_s),
+  // 
+  //   .address_b (10'd0),
+  //   .clock_b   (clk_i),
+  //   .data_b    (8'd0),
+  //   .wren_b    (1'b0),
+  //   .q_b       (qb_unused_s)
+  // );
+  assign pr_i.a_addr = {5'd0, a_i};  assign pr_i.a_d = {4'b0000, d_i};  assign pr_i.a_we = we_s;
+  assign pr_i.b_addr = 15'd0;  assign pr_i.b_d = 8'd0;  assign pr_i.b_we = 1'b0;
+  assign qa_s = pr_o.a_q;
   assign d_s = qa_s[3:0];
 
   // gate the data output for and'ing on CPU bus
@@ -253,7 +277,11 @@ module ladybug_sprite_vram (
   input  logic       cs_n_i,
   input  logic       we_n_i,
   input  logic [3:0] d_i,
-  output logic [3:0] d_o
+  output logic [3:0] d_o,
+
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  output ram_pool_pkg::pram_i_t pr_i,
+  input  ram_pool_pkg::pram_o_t pr_o
 );
 
   logic       we_s;
@@ -265,19 +293,23 @@ module ladybug_sprite_vram (
   // during write cycle
   assign we_s = ~cs_n_i & ~we_n_i & clk_en_i;
 
-  dpram_dc #(.widthad_a(10), .width_a(8)) ram_inst (
-    .address_a (a_i),
-    .clock_a   (clk_i),
-    .data_a    ({4'b0000, d_i}),
-    .wren_a    (we_s),
-    .q_a       (qa_s),
-
-    .address_b (10'd0),
-    .clock_b   (clk_i),
-    .data_b    (8'd0),
-    .wren_b    (1'b0),
-    .q_b       (qb_unused_s)
-  );
+  // RAMPOOL-2026-10-27: original instance
+  // dpram_dc #(.widthad_a(10), .width_a(8)) ram_inst (
+  //   .address_a (a_i),
+  //   .clock_a   (clk_i),
+  //   .data_a    ({4'b0000, d_i}),
+  //   .wren_a    (we_s),
+  //   .q_a       (qa_s),
+  // 
+  //   .address_b (10'd0),
+  //   .clock_b   (clk_i),
+  //   .data_b    (8'd0),
+  //   .wren_b    (1'b0),
+  //   .q_b       (qb_unused_s)
+  // );
+  assign pr_i.a_addr = {5'd0, a_i};  assign pr_i.a_d = {4'b0000, d_i};  assign pr_i.a_we = we_s;
+  assign pr_i.b_addr = 15'd0;  assign pr_i.b_d = 8'd0;  assign pr_i.b_we = 1'b0;
+  assign qa_s = pr_o.a_q;
   assign d_o = qa_s[3:0];
 
 endmodule
@@ -317,7 +349,11 @@ module ladybug_cpu_ram (
   input  logic        cs2_n_i,
   input  logic        we2_n_i,
   input  logic [7:0]  d2_i,
-  output logic [7:0]  d2_o
+  output logic [7:0]  d2_o,
+
+  // RAMPOOL-2026-10-27: the RAM is a board RAM pool block (universal_board.sv); original dpram_dc instance kept below
+  output ram_pool_pkg::pram_i_t pr_i,
+  input  ram_pool_pkg::pram_o_t pr_o
 );
 
   logic [7:0] d1_s;
@@ -331,19 +367,23 @@ module ladybug_cpu_ram (
   assign we1_s = ~cs1_n_i & ~we1_n_i & clk_en1_i;
   assign we2_s = ~cs2_n_i & ~we2_n_i & clk_en2_i;
 
-  dpram_dc #(.widthad_a(12), .width_a(8)) ram1_inst (
-    .address_a (a1_i),
-    .clock_a   (clk1_i),
-    .data_a    (d1_i),
-    .wren_a    (we1_s),
-    .q_a       (d1_s),
-
-    .address_b (a2_i),
-    .clock_b   (clk2_i),
-    .data_b    (d2_i),
-    .wren_b    (we2_s),
-    .q_b       (d2_s)
-  );
+  // RAMPOOL-2026-10-27: original instance
+  // dpram_dc #(.widthad_a(12), .width_a(8)) ram1_inst (
+  //   .address_a (a1_i),
+  //   .clock_a   (clk1_i),
+  //   .data_a    (d1_i),
+  //   .wren_a    (we1_s),
+  //   .q_a       (d1_s),
+  // 
+  //   .address_b (a2_i),
+  //   .clock_b   (clk2_i),
+  //   .data_b    (d2_i),
+  //   .wren_b    (we2_s),
+  //   .q_b       (d2_s)
+  // );
+  assign pr_i.a_addr = {3'd0, a1_i};  assign pr_i.a_d = d1_i;  assign pr_i.a_we = we1_s;
+  assign pr_i.b_addr = {3'd0, a2_i};  assign pr_i.b_d = d2_i;  assign pr_i.b_we = we2_s;
+  assign d1_s = pr_o.a_q;  assign d2_s = pr_o.b_q;
 
   // gate the data output for and'ing on CPU bus
   assign d1_o = (cs1_n_i == 1'b0) ? d1_s : '1;

@@ -89,18 +89,29 @@ module ladybug_video_unit (
   input  logic [15:0] rom_sprite_d_i,
 
   // PROM download interface (replaces dn_* ports) ----------------------------
-  input  logic [4:0]  prom_a_i,
-  input  logic [7:0]  prom_d_i,
-  input  logic        prom_k1_wr_i,
-  input  logic        prom_f4_wr_i,
-  input  logic        prom_c4_wr_i,
+  // ROMPOOL-2026-10-27: PROMs are dispatcher ROM blocks (read ports); originals:
+  // input  logic [4:0]  prom_a_i,
+  // input  logic [7:0]  prom_d_i,
+  // input  logic        prom_k1_wr_i,
+  // input  logic        prom_f4_wr_i,
+  // input  logic        prom_c4_wr_i,
+  output logic [4:0]  prom_k1_a_o,
+  input  logic [7:0]  prom_k1_d_i,
+  output logic [4:0]  prom_f4_a_o,
+  input  logic [7:0]  prom_f4_d_i,
+  output logic [4:0]  prom_c4_a_o,
+  input  logic [7:0]  prom_c4_d_i,
 
   input  logic        pause,
 
   input  logic [15:0] hs_address,
   output logic [7:0]  hs_data_out,
   input  logic [7:0]  hs_data_in,
-  input  logic        hs_write
+  input  logic        hs_write,
+
+  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_board.sv); local index = RAM within this module
+  output ram_pool_pkg::pram_i_t [6:0] pr_i,
+  input  ram_pool_pkg::pram_o_t [6:0] pr_o
 );
 
   logic [3:0] h_s, h_t_s;
@@ -187,7 +198,9 @@ module ladybug_video_unit (
     .hs_address    (hs_address),
     .hs_data_in    (hs_data_in),
     .hs_data_out   (hs_data_out),
-    .hs_write      (hs_write)
+    .hs_write      (hs_write),
+    .pr_i          (pr_i[1:0]),
+    .pr_o          (pr_o[1:0])
   );
 
   // ---------------------------------------------------------------------------
@@ -218,10 +231,17 @@ module ladybug_video_unit (
     .sig_o            (sig_s),
     .rom_sprite_a_o   (rom_sprite_a_o),
     .rom_sprite_d_i   (rom_sprite_d_i),
-    .prom_f4_wr_i     (prom_f4_wr_i),
-    .prom_c4_wr_i     (prom_c4_wr_i),
-    .prom_a_i         (prom_a_i),
-    .prom_d_i         (prom_d_i)
+    // ROMPOOL-2026-10-27: originals
+    // .prom_f4_wr_i     (prom_f4_wr_i),
+    // .prom_c4_wr_i     (prom_c4_wr_i),
+    // .prom_a_i         (prom_a_i),
+    // .prom_d_i         (prom_d_i),
+    .prom_f4_a_o      (prom_f4_a_o),
+    .prom_f4_d_i      (prom_f4_d_i),
+    .prom_c4_a_o      (prom_c4_a_o),
+    .prom_c4_d_i      (prom_c4_d_i),
+    .pr_i             (pr_i[6:2]),
+    .pr_o             (pr_o[6:2])
   );
 
   // ---------------------------------------------------------------------------
@@ -238,9 +258,12 @@ module ladybug_video_unit (
     .rgb_b_o       (rgb_b_o),
     .rgb_n_o       (rgb_n_o),
     .bg_o          (bg_o),
-    .prom_wr_i     (prom_k1_wr_i),
-    .prom_a_i      (prom_a_i),
-    .prom_d_i      (prom_d_i)
+    // ROMPOOL-2026-10-27: originals
+    // .prom_wr_i     (prom_k1_wr_i),
+    // .prom_a_i      (prom_a_i),
+    // .prom_d_i      (prom_d_i)
+    .prom_a_o      (prom_k1_a_o),
+    .prom_d_i      (prom_k1_d_i)
   );
 
   // ---------------------------------------------------------------------------
