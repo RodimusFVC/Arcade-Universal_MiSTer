@@ -1,50 +1,19 @@
-//============================================================================
-//
-//  Universal 8302 board (Mr. Do's Castle, Do! Run Run, Wild Ride, Jumping Jack, Kick Rider)
 //  Copyright (C) 2026 Rodimus
-//
-//  From MAME docastle.cpp (Brad Oliver) and the Mr. Do's Castle service manual schematics.
-//
-//  Clocks: 4.000 MHz for both Z80s, 9.828 MHz video crystal / 2 = pixel clock (here 19.656 / 4),
-//  HD6845S CRTC at pixel / 8 (one character = 8 pixels). The game programs the CRTC.
-//
-//  map_mode 0 (MAME docastle_state):   main 0000-7FFF ROM, 8000-97FF RAM, 9800-99FF sprites,
-//      A000-A7FF latch, B000/B800 video RAM, B400/BC00 colour RAM, E000 sub NMI;
-//      sub 0000-3FFF ROM, 8000-87FF RAM, A000-A7FF latch, C000-C007(+C080) inputs / flip,
-//      E000/E400/E800/EC00 SN76489A.
-//  map_mode 1 (MAME dorunrun_state):   main 0000-1FFF ROM, 2000-37FF RAM, 3800-39FF sprites,
-//      4000-9FFF ROM, A000-A7FF latch, B000 video RAM, B400 colour RAM, B800 sub NMI;
-//      sub 0000-3FFF ROM, 8000-87FF RAM, A000/A400/A800/AC00 SN76489A, C000 inputs / flip,
-//      E000-E7FF latch.
-//  idsoccer (MAME idsoccer_state): main 0000-3FFF / 6000-9FFF ROM, 4000-57FF RAM, 5800-59FF sprites,
-//      A000 latch, B000/B800 video RAM, B400/BC00 colour RAM, C000 ADPCM status / control, E000 sub NMI;
-//      sub as docastle; sprite layout with tile bits 8-9 and no Y flip; MSM5205 at 384 kHz / 48;
-//      second joystick on TMS1025 port 4; sprite graphics byte-wide (8 reads per row).
-//  pri_low: tile pens 0-7 drawn over sprites (dorunrun_state), else pens 8-15 (docastle_state).
-//
-//  Main <-> sub: one bidirectional latch; a main access holds main WAIT until the sub CPU
-//  accesses the latch (MAME main_from_sub_r / main_to_sub_w).
-//  IRQs (as MAME): main IRQ = CRTC VSYNC; sub IRQ on HSYNC when MA6 rises, held until acknowledged;
-//  sub WAIT = any SN76489A not READY. Inputs through two TMS1025 multiplexers (read returns the
-//  port selected by the previous access). The sprite CPU (pass-through to the CF37201 sprite chip)
-//  is not modelled: as in MAME, the main CPU's sprite writes go straight to sprite RAM.
-//
-//============================================================================
+// Based on MAME docastle.cpp (Brad Oliver, BSD-3-Clause)
 
 module docastle_board
 (
-    output chip_pool_pkg::z80pa_i_t         z80pa_0_i,   // shared Z80s (rtl/universal_dispatcher.sv): main
+    output chip_pool_pkg::z80pa_i_t         z80pa_0_i,
     input  chip_pool_pkg::z80pa_o_t         z80pa_0_o,
-    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,   // sub
+    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,
     input  chip_pool_pkg::z80pa_o_t         z80pa_1_o,
-    output chip_pool_pkg::sn76489_i_t [3:0] sn76489_i,   // shared SN76489s 0-3
+    output chip_pool_pkg::sn76489_i_t [3:0] sn76489_i,
     input  chip_pool_pkg::sn76489_o_t [3:0] sn76489_o,
-    // CHIPPOOL-2026-10-27: the MSM5205 (jt5205) and the CRTC are pool slots jt5205_0 / mc6845_0 in universal_dispatcher.sv
     output chip_pool_pkg::jt5205_i_t        jt5205_0_i,
     input  chip_pool_pkg::jt5205_o_t        jt5205_0_o,
     output chip_pool_pkg::mc6845_i_t        mc6845_0_i,
     input  chip_pool_pkg::mc6845_o_t        mc6845_0_o,
-    input  logic               clk,            // 19.656 MHz
+    input  logic               clk,
     input  logic               reset,
     input  logic               pause,
     input  logic               map_mode,
@@ -72,31 +41,22 @@ module docastle_board
     output logic               video_vblank,
     output logic signed [15:0] audio,
 
-    output logic        [15:0] rom_main_a,     // 0000-9FFF
+    output logic        [15:0] rom_main_a,
     input  logic         [7:0] rom_main_d,
     output logic        [13:0] rom_sub_a,
     input  logic         [7:0] rom_sub_d,
-    output logic        [11:0] rom_tile_a,     // gfx1 row: 4 byte lanes
+    output logic        [11:0] rom_tile_a,
     input  logic        [31:0] rom_tile_d,
-    output logic        [11:0] rom_spr_a,      // gfx2 row: 8 byte lanes
+    output logic        [11:0] rom_spr_a,
     input  logic        [63:0] rom_spr_d,
-    // DDR3-2026-10-23: idsoccer gfx2 and ADPCM come from DDR3 (ddr_rom.sv). Originals:
-    // output logic        [16:0] rom_spr8_a,     // idsoccer gfx2 (128K, byte-wide)
-    // input  logic         [7:0] rom_spr8_d,
-    // output logic        [15:0] rom_adpcm_a,
-    // input  logic         [7:0] rom_adpcm_d,
-    output logic        [16:0] rom_spr8_a,     // idsoccer gfx2 (128K): byte address of an 8-byte sprite row
-    output logic               rom_spr8_req,   // pulse; rom_spr8_a held until rom_spr8_rdy
-    input  logic               rom_spr8_rdy,   // pulse: rom_spr8_q = the row (byte k = bits 8k+7:8k)
+    output logic        [16:0] rom_spr8_a,
+    output logic               rom_spr8_req,
+    input  logic               rom_spr8_rdy,
     input  logic        [63:0] rom_spr8_q,
     output logic        [15:0] rom_adpcm_a,
     input  logic         [7:0] rom_adpcm_d,
-    input  logic               rom_adpcm_rdy,  // rom_adpcm_d is the byte at rom_adpcm_a
+    input  logic               rom_adpcm_rdy,
 
-    // ROMPOOL-2026-10-27: the colour PROM is a dispatcher ROM block (read port exported); originals:
-    // input  logic               prom_wr,
-    // input  logic         [7:0] prom_a,
-    // input  logic         [7:0] prom_d,
     output logic         [7:0] prom_a_o,
     input  logic         [7:0] prom_d_i,
 
@@ -105,22 +65,18 @@ module docastle_board
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
 
-    // RAMPOOL-2026-10-23: main RAM / sub RAM / video RAM live in the board RAM pool (universal_dispatcher.sv)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
 
-// ------------------------------------------------------------------ clocks
 logic [1:0] ph = 2'd0;
 always_ff @(posedge clk) ph <= ph + 2'd1;
 assign ce_pix = (ph == 2'd3);
 
-logic [2:0] chr = 3'd0;                         // pixel within character
+logic [2:0] chr = 3'd0;
 always_ff @(posedge clk) if (ce_pix) chr <= chr + 3'd1;
 wire crtc_ce = ce_pix && chr == 3'd7;
 
-// both Z80s: 4.000 MHz = 19.656 MHz * 1000 / 4914, rising / falling edges alternate
 logic [11:0] frac_q = 12'd0;
 logic        frac_ph = 1'b0, cen_p = 1'b0, cen_n = 1'b0;
 wire  [12:0] frac_sum  = {1'b0, frac_q} + 13'd1000;
@@ -135,13 +91,11 @@ end
 wire cpu_p = cen_p & ~pause;
 wire cpu_n = cen_n & ~pause;
 
-// ------------------------------------------------------------------ main CPU
 logic        m_mreq_n, m_iorq_n, m_rd_n, m_wr_n, m_m1_n, m_rfsh_n;
 logic [15:0] m_a;
 logic  [7:0] m_di, m_do;
 logic        m_wait_n, m_int_n;
 
-// the shared T80pa z80pa_0 in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = ~reset;
 assign z80pa_0_i.cen_p   = cpu_p;
 assign z80pa_0_i.cen_n   = cpu_n;
@@ -161,44 +115,35 @@ assign m_do     = z80pa_0_o.dout;
 wire m_mem = !m_mreq_n && m_rfsh_n;
 wire m_io  = !m_iorq_n && m_m1_n;
 
-// address decode per board
 wire m_rom  = m_mem && (idsoccer ? (m_a < 16'h4000 || (m_a >= 16'h6000 && m_a < 16'hA000)) :
                         map_mode ? (m_a < 16'h2000 || (m_a >= 16'h4000 && m_a < 16'hA000)) : !m_a[15]);
 wire m_ram  = m_mem && (idsoccer ? (m_a >= 16'h4000 && m_a < 16'h5800) :
                         map_mode ? (m_a >= 16'h2000 && m_a < 16'h3800) : (m_a >= 16'h8000 && m_a < 16'h9800));
 wire m_spr  = m_mem && (idsoccer ? (m_a[15:9] == 7'b0101100) :
-                        map_mode ? (m_a[15:9] == 7'b0011100) : (m_a[15:9] == 7'b1001100));        // 5800 / 3800 / 9800
-wire m_lat  = m_mem && m_a[15:11] == 5'b10100;                                                     // A000-A7FF
-wire m_vid  = m_mem && (map_mode ? (m_a[15:11] == 5'b10110) : (m_a[15:12] == 4'hB));                // docastle / idsoccer: mirrored at B800
+                        map_mode ? (m_a[15:9] == 7'b0011100) : (m_a[15:9] == 7'b1001100));
+wire m_lat  = m_mem && m_a[15:11] == 5'b10100;
+wire m_vid  = m_mem && (map_mode ? (m_a[15:11] == 5'b10110) : (m_a[15:12] == 4'hB));
 wire m_vram = m_vid && !m_a[10];
 wire m_cram = m_vid &&  m_a[10];
-wire m_nmi  = m_mem && !m_wr_n && (map_mode ? (m_a[15:11] == 5'b10111) : (m_a[15:12] == 4'hE));  // B800 / E000
-wire m_adp  = m_mem && idsoccer && m_a[15:12] == 4'hC;                                             // C000
-wire m_crtc = m_io && !m_wr_n && m_a[7:2] == 6'd0 && !m_a[0];                                       // 00 address, 02 data
+wire m_nmi  = m_mem && !m_wr_n && (map_mode ? (m_a[15:11] == 5'b10111) : (m_a[15:12] == 4'hE));
+wire m_adp  = m_mem && idsoccer && m_a[15:12] == 4'hC;
+wire m_crtc = m_io && !m_wr_n && m_a[7:2] == 6'd0 && !m_a[0];
 
-wire [12:0] m_ram_a = m_a[12:0];                         // 2000-37FF / 8000-97FF -> 0000-17FF
+wire [12:0] m_ram_a = m_a[12:0];
 assign rom_main_a   = m_a;
 
 logic [7:0] m_ram_q, vram_q, cram_q;
 
-// RAMPOOL-2026-10-23: original below; pool block 0
-// dpram_dc #(.widthad_a(13)) main_ram
-// (
-//     .clock_a(clk), .address_a(m_ram_a), .data_a(m_do), .wren_a(m_ram && !m_wr_n), .q_a(m_ram_q),
-//     .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
-// );
-assign pr_i[0].a_addr = {2'd0, m_ram_a};     assign pr_i[0].a_d = m_do;        assign pr_i[0].a_we = m_ram && !m_wr_n;
-assign pr_i[0].b_addr = {2'd0, hs_address};  assign pr_i[0].b_d = hs_data_in;  assign pr_i[0].b_we = hs_write;
+assign pr_i[0].a_addr = {3'd0, m_ram_a};     assign pr_i[0].a_d = m_do;        assign pr_i[0].a_we = m_ram && !m_wr_n;
+assign pr_i[0].b_addr = {3'd0, hs_address};  assign pr_i[0].b_d = hs_data_in;  assign pr_i[0].b_we = hs_write;
 assign m_ram_q = pr_o[0].a_q;  assign hs_data_out = pr_o[0].b_q;
 
-// ------------------------------------------------------------------ sub CPU
 logic        s_mreq_n, s_iorq_n, s_rd_n, s_wr_n, s_m1_n, s_rfsh_n;
 logic [15:0] s_a;
 logic  [7:0] s_di, s_do;
 logic        s_int_n = 1'b1, s_nmi_n = 1'b1;
 logic  [3:0] sn_ready;
 
-// the shared T80pa z80pa_1 in rtl/universal_dispatcher.sv
 assign z80pa_1_i.reset_n = ~reset;
 assign z80pa_1_i.cen_p   = cpu_p;
 assign z80pa_1_i.cen_n   = cpu_n;
@@ -219,47 +164,38 @@ wire s_mem = !s_mreq_n && s_rfsh_n;
 wire s_rom = s_mem && s_a[15:14] == 2'b00;
 wire s_ram = s_mem && s_a[15:11] == 5'b10000;
 wire s_lat = s_mem && (map_mode ? s_a[15:11] == 5'b11100 : s_a[15:11] == 5'b10100);
-wire s_inp = s_mem && s_a[15:12] == 4'hC && s_a[11:8] == 4'h0 && s_a[6:3] == 4'd0;               // C000-C007 / C080-C087
-wire s_snb = s_mem && (map_mode ? s_a[15:12] == 4'hA : s_a[15:12] == 4'hE);                        // A000-AFFF / E000-EFFF
+wire s_inp = s_mem && s_a[15:12] == 4'hC && s_a[11:8] == 4'h0 && s_a[6:3] == 4'd0;
+wire s_snb = s_mem && (map_mode ? s_a[15:12] == 4'hA : s_a[15:12] == 4'hE);
 wire [1:0] s_sn_n = s_a[11:10];
 
 assign rom_sub_a = s_a[13:0];
 
 logic [7:0] s_ram_q;
-// RAMPOOL-2026-10-23: original below; pool block 1
-// dpram_dc #(.widthad_a(11)) sub_ram
-// (
-//     .clock_a(clk), .address_a(s_a[10:0]), .data_a(s_do), .wren_a(s_ram && !s_wr_n), .q_a(s_ram_q),
-//     .clock_b(clk)
-// );
-assign pr_i[1].a_addr = {4'd0, s_a[10:0]};  assign pr_i[1].a_d = s_do;  assign pr_i[1].a_we = s_ram && !s_wr_n;
-assign pr_i[1].b_addr = 15'd0;              assign pr_i[1].b_d = 8'd0;  assign pr_i[1].b_we = 1'b0;
+assign pr_i[1].a_addr = {5'd0, s_a[10:0]};  assign pr_i[1].a_d = s_do;  assign pr_i[1].a_we = s_ram && !s_wr_n;
+assign pr_i[1].b_addr = 16'd0;              assign pr_i[1].b_d = 8'd0;  assign pr_i[1].b_we = 1'b0;
 assign s_ram_q = pr_o[1].a_q;
 
-// ------------------------------------------------------------------ main <-> sub latch with main WAIT
 logic [7:0] latch = 8'h00;
 logic       busy = 1'b0, m_lat_d = 1'b0, s_lat_d = 1'b0;
 always_ff @(posedge clk) begin
     m_lat_d <= m_lat;
     s_lat_d <= s_lat;
     if (reset) busy <= 1'b0;
-    else if (s_lat && !s_lat_d) busy <= 1'b0;                 // sub access releases the main CPU
-    else if (m_lat && !m_lat_d) busy <= 1'b1;                 // main access waits for it
+    else if (s_lat && !s_lat_d) busy <= 1'b0;
+    else if (m_lat && !m_lat_d) busy <= 1'b1;
     if (m_lat && !m_wr_n) latch <= m_do;
     if (s_lat && !s_wr_n) latch <= s_do;
 end
 assign m_wait_n = ~(busy && m_lat);
 
-// sub NMI: main write to E000 / B800
 logic m_nmi_d = 1'b0;
 always_ff @(posedge clk) begin
     m_nmi_d <= m_nmi;
     if (reset) s_nmi_n <= 1'b1;
     else if (m_nmi && !m_nmi_d) s_nmi_n <= 1'b0;
-    else if (cpu_p) s_nmi_n <= 1'b1;                           // pulse: long enough for the edge-triggered NMI
+    else if (cpu_p) s_nmi_n <= 1'b1;
 end
 
-// ------------------------------------------------------------------ TMS1025 inputs, flip latch
 logic [2:0] tms_s = 3'd0;
 logic [7:0] tms_h = 8'h00;
 logic       flip  = 1'b0;
@@ -273,7 +209,7 @@ function automatic [7:0] tms_port(input [2:0] s, input [7:0] j, input [7:0] b, i
         3'd4: tms_port = j2;
         3'd5: tms_port = b;
         3'd7: tms_port = sy;
-        default: tms_port = 8'h00;                             // unconnected port inputs read 0 (MAME default)
+        default: tms_port = 8'h00;
     endcase
 endfunction
 
@@ -285,20 +221,18 @@ always_ff @(posedge clk) begin
         tms_s <= 3'd0; flip <= 1'b0;
     end
     else if (s_inp && !s_inp_d) begin
-        flip <= s_a[7];                                        // LS273 latches A7 on every access
+        flip <= s_a[7];
         if (!s_rd_n) begin
-            tms_h <= tms_now;                                  // value returned by this read
-            tms_s <= s_a[2:0];                                 // selects the port for the next one
+            tms_h <= tms_now;
+            tms_s <= s_a[2:0];
         end
     end
 end
 
-// ------------------------------------------------------------------ sound: 4x SN76489A, READY -> sub WAIT
 logic signed [10:0] sn_out[4];
 genvar i;
 generate
     for (i = 0; i < 4; i++) begin : sn
-        // the shared SN76489s in rtl/universal_dispatcher.sv
         assign sn76489_i[i].rst  = reset;
         assign sn76489_i[i].ce   = cpu_p;
         assign sn76489_i[i].wr_n = s_wr_n;
@@ -310,28 +244,18 @@ generate
 endgenerate
 wire signed [12:0] snd_sum = sn_out[0] + sn_out[1] + sn_out[2] + sn_out[3];
 
-// ------------------------------------------------------------------ Indoor Soccer ADPCM (MAME idsoccer_state)
-// 384 kHz / 48 = 8 kHz VCK = 19.656 MHz / 2457. Control write: D7 falling = stop, D6 falling = start the
-// 16K-byte block (D1-D0); status read: D7 = playing. Each VCK: next nibble (high first) or stop at the block end.
-// JT5205-2026-10-25: VCK now comes from jt5205 (its irq output, chip below). Original divider:
-// logic [11:0] vck_div = 12'd0;
-// wire         vck = (vck_div == 12'd2456);
-// always_ff @(posedge clk) vck_div <= vck ? 12'd0 : vck_div + 12'd1;
 wire         vck;
 
-logic [16:0] adp_pos = 17'd0, adp_end = 17'd0;              // nibble address (64K bytes)
+logic [16:0] adp_pos = 17'd0, adp_end = 17'd0;
 logic        adp_idle = 1'b1, adp_rst = 1'b1, adp_wr_d = 1'b0;
 logic  [7:0] adp_ctl = 8'h00;
 logic  [3:0] adp_nib = 4'd0;
 logic        adp_step = 1'b0;
 wire         adp_wr = m_adp && !m_wr_n;
-// DDR3-2026-10-23: a VCK that needs a byte not yet fetched from DDR3 waits for it (only right after a block start)
 logic        adp_vpend = 1'b0;
 wire         adp_go   = (vck || adp_vpend) && !pause;
 wire         adp_need = !(adp_pos >= adp_end || adp_idle);
 
-// JT5205-2026-10-25: 384 kHz clock enable = 48 / 2457 of 19.656 MHz (exactly 8 kHz VCK at S = /48). Chip time stops
-// while paused or while a VCK waits for DDR3, as the old VCK step did.
 logic [11:0] msm_acc   = 12'd0;
 wire  [11:0] msm_acc_n = msm_acc + 12'd48;
 wire         msm_run   = !pause && !adp_vpend;
@@ -351,23 +275,12 @@ always_ff @(posedge clk) begin
         if (adp_wr && !adp_wr_d) begin
             if (adp_ctl[7] && !m_do[7]) begin adp_idle <= 1'b1; adp_rst <= 1'b1; end
             if (adp_ctl[6] && !m_do[6]) begin
-                adp_pos  <= {m_do[1:0], 15'd0};                                // (data & 3) * 0x8000 nibbles
+                adp_pos  <= {m_do[1:0], 15'd0};
                 adp_end  <= {m_do[1:0], 15'd0} + 17'h08000;
                 adp_idle <= 1'b0; adp_rst <= 1'b0;
             end
             adp_ctl <= m_do;
         end
-        // DDR3-2026-10-23: original VCK step below
-        // if (vck && !pause) begin
-        //     if (adp_pos >= adp_end || adp_idle) begin
-        //         adp_idle <= 1'b1; adp_rst <= 1'b1;
-        //     end
-        //     else begin
-        //         adp_nib <= adp_pos[0] ? rom_adpcm_d[3:0] : rom_adpcm_d[7:4];
-        //         adp_pos <= adp_pos + 17'd1;
-        //     end
-        //     adp_step <= 1'b1;                                   // decoder runs after the callback, as in MAME
-        // end
         if (adp_go) begin
             if (adp_need && !rom_adpcm_rdy) adp_vpend <= 1'b1;
             else begin
@@ -379,59 +292,31 @@ always_ff @(posedge clk) begin
                     adp_nib <= adp_pos[0] ? rom_adpcm_d[3:0] : rom_adpcm_d[7:4];
                     adp_pos <= adp_pos + 17'd1;
                 end
-                adp_step <= 1'b1;                               // decoder runs after the callback, as in MAME
+                adp_step <= 1'b1;
             end
         end
     end
 end
 
-// JT5205-2026-10-25: our msm5205.sv replaced by jt5205 (Jose Tejada); adp_step is unused while it is in. Original:
-// logic signed [11:0] adp_sig;
-// msm5205 adpcm
-// (
-//     .clk(clk), .step(adp_step), .rst(adp_rst), .data(adp_nib), .signal(adp_sig)
-// );
-// S = 2 (/48). jt5205 latches adp_nib on its irq (= vck) and outputs it decoded at the next one: one sample later
-// than MAME, which decodes the nibble written in the VCK callback. Full 12 bits out, rest level -2.
-// CHIPPOOL-2026-10-27: original instance below; now pool slot jt5205_0 (universal_dispatcher.sv)
-// logic signed [11:0] adp_sig;
-// jt5205 adpcm
-// (
-//     .rst(adp_rst), .clk(clk), .cen(msm_cen), .sel(2'd2), .din(adp_nib),
-//     .sound(adp_sig), .sample(), .irq(vck), .vclk_o()
-// );
 logic signed [11:0] adp_sig;
 assign jt5205_0_i.rst = adp_rst;  assign jt5205_0_i.cen = msm_cen;  assign jt5205_0_i.sel = 2'd2;  assign jt5205_0_i.din = adp_nib;
 assign adp_sig = jt5205_0_o.sound;  assign vck = jt5205_0_o.irq;
 
-// mix: 4x SN76489A at 0.25, MSM5205 at 0.40 (MAME routes)
-// SN: jt89 channel +/-255 x4 = MAME 0x7fff/4 x 0.25 per channel; MSM: MAME 2047/4096 x 0.40 of full scale = x3.2
-// every operand explicitly signed: with an unsigned concatenation in the sum, the LRM makes 'adp_w >>> 2' a logical shift
 wire signed [16:0] adp_w = $signed({{5{adp_sig[11]}}, adp_sig}) * 17'sd13;
 wire signed [16:0] adp_s = adp_w >>> 2;
-wire signed [16:0] sn_w  = $signed({{4{snd_sum[12]}}, snd_sum}) * 17'sd4;
+wire signed [16:0] sn_w  = $signed({{4{snd_sum[12]}}, snd_sum}) * 17'sd8;    // sn76489sv is unipolar 0..1020 (0 when silent): 4 chips max 4080, x8 = 32640 fits int16 (jt89 was +-, *4)
 wire signed [16:0] mix   = sn_w + (idsoccer ? adp_s : 17'sd0);
 assign audio = (mix > 17'sd32767) ? 16'sd32767 : (mix < -17'sd32768) ? -16'sd32768 : mix[15:0];
 
-// ------------------------------------------------------------------ CRTC
 logic        crtc_vs, crtc_hs, crtc_vbl, crtc_hbl, crtc_de;
 logic [13:0] crtc_ma;
 logic  [4:0] crtc_ra;
 
-// CHIPPOOL-2026-10-27: original instance below; now pool slot mc6845_0 (universal_dispatcher.sv)
-// mc6845 crtc
-// (
-//     .CLOCK(clk), .CLKEN(crtc_ce), .nRESET(~reset),
-//     .ENABLE(m_crtc), .R_nW(1'b0), .RS(m_a[1]), .DI(m_do), .DO(),
-//     .VSYNC(crtc_vs), .HSYNC(crtc_hs), .VBLANK(crtc_vbl), .HBLANK(crtc_hbl), .DE(crtc_de),
-//     .CURSOR(), .LPSTB(1'b0), .MA(crtc_ma), .RA(crtc_ra)
-// );
 assign mc6845_0_i.reset_n = ~reset;  assign mc6845_0_i.clken = crtc_ce;  assign mc6845_0_i.enable = m_crtc;
 assign mc6845_0_i.r_nw = 1'b0;  assign mc6845_0_i.rs = m_a[1];  assign mc6845_0_i.di = m_do;
 assign crtc_vs = mc6845_0_o.vsync;  assign crtc_hs = mc6845_0_o.hsync;  assign crtc_vbl = mc6845_0_o.vblank;
 assign crtc_hbl = mc6845_0_o.hblank;  assign crtc_de = mc6845_0_o.de;  assign crtc_ma = mc6845_0_o.ma;  assign crtc_ra = mc6845_0_o.ra;
 
-// main IRQ follows VSYNC (MAME set_inputline); sub IRQ on HSYNC when MA6 rises (MAME docastle_tint)
 assign m_int_n = ~crtc_vs;
 logic hs_d = 1'b0, ma6_prev = 1'b0;
 always_ff @(posedge clk) begin
@@ -444,51 +329,27 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ video RAM, sprite RAM
 logic [9:0] v_tile_a;
 logic [7:0] v_code, v_attr;
 
-// RAMPOOL-2026-10-23: original below; pool block 2
-// dpram_dc #(.widthad_a(10)) video_ram
-// (
-//     .clock_a(clk), .address_a(m_a[9:0]), .data_a(m_do), .wren_a(m_vram && !m_wr_n), .q_a(vram_q),
-//     .clock_b(clk), .address_b(v_tile_a), .q_b(v_code)
-// );
-assign pr_i[2].a_addr = {5'd0, m_a[9:0]};  assign pr_i[2].a_d = m_do;  assign pr_i[2].a_we = m_vram && !m_wr_n;
-assign pr_i[2].b_addr = {5'd0, v_tile_a};  assign pr_i[2].b_d = 8'd0;  assign pr_i[2].b_we = 1'b0;
+assign pr_i[2].a_addr = {6'd0, m_a[9:0]};  assign pr_i[2].a_d = m_do;  assign pr_i[2].a_we = m_vram && !m_wr_n;
+assign pr_i[2].b_addr = {6'd0, v_tile_a};  assign pr_i[2].b_d = 8'd0;  assign pr_i[2].b_we = 1'b0;
 assign vram_q = pr_o[2].a_q;  assign v_code = pr_o[2].b_q;
-// RAMPOOL-2026-10-27: original below; now pool block 4
-// dpram_dc #(.widthad_a(10)) color_ram
-// (
-//     .clock_a(clk), .address_a(m_a[9:0]), .data_a(m_do), .wren_a(m_cram && !m_wr_n), .q_a(cram_q),
-//     .clock_b(clk), .address_b(v_tile_a), .q_b(v_attr)
-// );
-assign pr_i[4].a_addr = {5'd0, m_a[9:0]};  assign pr_i[4].a_d = m_do;  assign pr_i[4].a_we = m_cram && !m_wr_n;
-assign pr_i[4].b_addr = {5'd0, v_tile_a};  assign pr_i[4].b_d = 8'd0;  assign pr_i[4].b_we = 1'b0;
+assign pr_i[4].a_addr = {6'd0, m_a[9:0]};  assign pr_i[4].a_d = m_do;  assign pr_i[4].a_we = m_cram && !m_wr_n;
+assign pr_i[4].b_addr = {6'd0, v_tile_a};  assign pr_i[4].b_d = 8'd0;  assign pr_i[4].b_we = 1'b0;
 assign cram_q = pr_o[4].a_q;  assign v_attr = pr_o[4].b_q;
 
 logic [6:0] spr_e;
-logic [7:0] spr_q[4];                                         // y, x, attr, code
+logic [7:0] spr_q[4];
 genvar l;
-// RAMPOOL-2026-10-27: original lane RAMs below; now pool blocks 5-8
-// generate
-//     for (l = 0; l < 4; l++) begin : spr_lane
-//         dpram_dc #(.widthad_a(7)) ram
-//         (
-//             .clock_a(clk), .address_a(m_a[8:2]), .data_a(m_do), .wren_a(m_spr && !m_wr_n && m_a[1:0] == l),
-//             .clock_b(clk), .address_b(spr_e), .q_b(spr_q[l])
-//         );
-//     end
-// endgenerate
 generate
     for (l = 0; l < 4; l++) begin : spr_lane
-        assign pr_i[5+l].a_addr = {8'd0, m_a[8:2]};  assign pr_i[5+l].a_d = m_do;  assign pr_i[5+l].a_we = m_spr && !m_wr_n && m_a[1:0] == l;
-        assign pr_i[5+l].b_addr = {8'd0, spr_e};     assign pr_i[5+l].b_d = 8'd0;  assign pr_i[5+l].b_we = 1'b0;
+        assign pr_i[5+l].a_addr = {9'd0, m_a[8:2]};  assign pr_i[5+l].a_d = m_do;  assign pr_i[5+l].a_we = m_spr && !m_wr_n && m_a[1:0] == l;
+        assign pr_i[5+l].b_addr = {9'd0, spr_e};     assign pr_i[5+l].b_d = 8'd0;  assign pr_i[5+l].b_we = 1'b0;
         assign spr_q[l] = pr_o[5+l].b_q;
     end
 endgenerate
 
-// ------------------------------------------------------------------ main CPU data in
 always_comb begin
     m_di = 8'hFF;
     if (m_rom)       m_di = rom_main_d;
@@ -507,13 +368,10 @@ always_comb begin
     else if (s_inp)  s_di = (s_inp_d ? tms_h : tms_now);
 end
 
-// ------------------------------------------------------------------ raster position from the CRTC
-// x = pixel within the 256-pixel horizontal display window (every line), y = display line (0-191).
-// MAME visible area: x 8-247 of that window, y 0-191.
 logic       hd_q = 1'b0, de_q = 1'b0;
 logic [7:0] px = 8'd0, py = 8'd0;
 logic       first_de = 1'b1, vbl_q = 1'b1;
-wire        hd_pix = !crtc_hbl;                                // horizontal display, CRTC changes on character edges
+wire        hd_pix = !crtc_hbl;
 wire        de_pix = crtc_de;
 always_ff @(posedge clk) begin
     if (ce_pix) begin
@@ -534,43 +392,27 @@ always_ff @(posedge clk) begin
     end
 end
 
-// logical (MAME) coordinates of the pixel at stage 0
-wire [7:0] lx = crt_flip ? ~px : px;                           // CRT Flip mirrors the whole picture
+wire [7:0] lx = crt_flip ? ~px : px;
 wire [7:0] ly = crt_flip ? (8'd191 - py) : py;
-wire [7:0] tx = flip ? ~lx : lx;                               // tilemap flip (MAME flip_screen_set: X and Y)
+wire [7:0] tx = flip ? ~lx : lx;
 wire [7:0] ty = flip ? (8'd191 - ly) : ly;
-wire [7:0] tmy = ty + 8'd32;                                   // MAME set_scrolldy(-32)
+wire [7:0] tmy = ty + 8'd32;
 
 assign v_tile_a = {tmy[7:3], tx[7:3]};
 
-// ------------------------------------------------------------------ sprite line buffer (built one line ahead)
-// MAME draw_sprites: offs 0x1FC down to 0; the first sprite to cover a pixel wins (priority 31);
-// pens 8-14 draw, pen 15 draws nothing but blocks later sprites, pens 0-7 are transparent.
-// Buffer b holds physical line n with n[0] == b; colour index in BRAM, visible / taken flags in registers.
 logic [7:0]   lb_q[2];
 logic [7:0]   lb_wa, lb_wd, lb_ra;
 logic         lb_we;
 logic         build_buf = 1'b0;
-// flags as plain 256-bit registers per buffer: a bit-select write into an unpacked array of vectors
-// crashes Quartus 17 elaboration (VRFX AssignRam "other_index")
+// plain 256-bit registers: a bit-select write into an unpacked array of vectors crashes Quartus 17 elaboration
 logic [255:0] lb_taken0 = '0, lb_taken1 = '0;
 logic [255:0] lb_vis0   = '0, lb_vis1   = '0;
 wire  [255:0] lb_taken_b = build_buf ? lb_taken1 : lb_taken0;
 
-// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 9 / 10
-// generate
-//     for (l = 0; l < 2; l++) begin : lbuf
-//         dpram_dc #(.widthad_a(8)) ram
-//         (
-//             .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
-//             .clock_b(clk), .address_b(lb_ra), .q_b(lb_q[l])
-//         );
-//     end
-// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        assign pr_i[9+l].a_addr = {7'd0, lb_wa};  assign pr_i[9+l].a_d = lb_wd;  assign pr_i[9+l].a_we = lb_we && build_buf == l;
-        assign pr_i[9+l].b_addr = {7'd0, lb_ra};  assign pr_i[9+l].b_d = 8'd0;   assign pr_i[9+l].b_we = 1'b0;
+        assign pr_i[9+l].a_addr = {8'd0, lb_wa};  assign pr_i[9+l].a_d = lb_wd;  assign pr_i[9+l].a_we = lb_we && build_buf == l;
+        assign pr_i[9+l].b_addr = {8'd0, lb_ra};  assign pr_i[9+l].b_d = 8'd0;   assign pr_i[9+l].b_we = 1'b0;
         assign lb_q[l] = pr_o[9+l].b_q;
     end
 endgenerate
@@ -580,7 +422,7 @@ assign pr_i[12:11] = '0;
 typedef enum logic [2:0] {SP_IDLE, SP_ADDR, SP_CHK, SP_FETCH, SP_PIX} sp_state_t;
 sp_state_t   sp_st = SP_IDLE;
 logic  [6:0] sp_e7;
-logic  [7:0] sp_line;                                          // logical (MAME) line being built
+logic  [7:0] sp_line;
 logic  [3:0] sp_px;
 logic  [8:0] sp_x;
 logic        sp_fx;
@@ -591,17 +433,15 @@ logic [11:0] sp_rom_a;
 assign spr_e     = sp_e7;
 assign rom_spr_a = sp_rom_a;
 
-// MAME sprite position (non-Indoor-Soccer layout), flip screen applied as in draw_sprites
 wire  [7:0] sxp8 = spr_q[1] + 8'd8;
-wire  [8:0] sx0  = {1'b0, sxp8} - 9'd8;                        // ((x + 8) & 0xFF) - 8
+wire  [8:0] sx0  = {1'b0, sxp8} - 9'd8;
 wire  [8:0] sy0  = {1'b0, spr_q[0]} - 9'd32;
 wire  [8:0] sx   = flip ? 9'd240 - sx0 : sx0;
 wire  [8:0] sy   = flip ? 9'd176 - sy0 : sy0;
 wire        fx   = spr_q[2][6] ^ flip;
-wire        fy   = (idsoccer ? 1'b0 : spr_q[2][7]) ^ flip;     // Indoor Soccer: no Y flip bit
-wire  [9:0] sp_code10 = {spr_q[2][7], spr_q[2][4], spr_q[3]};  // Indoor Soccer: tile bits 9 (attr 7) and 8 (attr 4)
+wire        fy   = (idsoccer ? 1'b0 : spr_q[2][7]) ^ flip;
+wire  [9:0] sp_code10 = {spr_q[2][7], spr_q[2][4], spr_q[3]};
 
-// Indoor Soccer row fetch: 8 bytes from the byte-wide sprite ROM
 logic [16:0] sp_rom8_a;
 logic  [3:0] sp_k;
 logic [63:0] sp_row8;
@@ -612,11 +452,9 @@ wire        on_line = !sr[8] && sr[7:4] == 4'd0;
 wire  [3:0] sp_c    = sp_fx ? ~sp_px : sp_px;
 wire [63:0] sp_rowd = idsoccer ? sp_row8 : rom_spr_d;
 wire  [7:0] sp_byte = sp_rowd[{sp_c[3:1], 3'b000} +: 8];
-wire  [3:0] sp_pen  = sp_c[0] ? sp_byte[3:0] : sp_byte[7:4];  // packed MSB first: even pixel in the high nibble
+wire  [3:0] sp_pen  = sp_c[0] ? sp_byte[3:0] : sp_byte[7:4];
 wire  [8:0] sp_xp   = sp_x + {5'd0, sp_px};
 
-// Build two lines ahead so each build gets a full line: at the end of display line n build line n+2
-// into buffer n[0] (just displayed); at vblank build lines 0 and 1.
 logic       pend1 = 1'b0;
 wire        go_vbl  = ce_pix && crtc_vbl && !vbl_q;
 wire        go_line = ce_pix && de_q && !de_pix && py < 8'd190;
@@ -636,7 +474,7 @@ always_ff @(posedge clk) begin
                      sp_e7     <= 7'd127;
                      sp_st     <= SP_ADDR;
                  end
-        SP_ADDR: sp_st <= SP_CHK;                              // sprite RAM read
+        SP_ADDR: sp_st <= SP_CHK;
         SP_CHK:  begin
                      if (on_line) begin
                          sp_rom_a  <= {spr_q[3], fy ? ~sr[3:0] : sr[3:0]};
@@ -648,24 +486,17 @@ always_ff @(posedge clk) begin
                          sp_px     <= 4'd0;
                          sp_rom_ok <= 1'b0;
                          sp_st     <= idsoccer ? SP_FETCH : SP_PIX;
-                         rom_spr8_req <= idsoccer;                 // DDR3-2026-10-23: one 8-byte row read
+                         rom_spr8_req <= idsoccer;
                      end
                      else if (sp_e7 == 7'd0) sp_st <= SP_IDLE;
                      else begin sp_e7 <= sp_e7 - 7'd1; sp_st <= SP_ADDR; end
                  end
-        // DDR3-2026-10-23: original byte-wide BRAM fetch below
-        // SP_FETCH: begin                                        // address k on the bus, byte k-1 arrives
-        //              if (sp_k != 4'd0) sp_row8[{sp_k[2:0] - 3'd1, 3'b000} +: 8] <= rom_spr8_d;
-        //              sp_rom8_a[2:0] <= sp_rom8_a[2:0] + 3'd1;
-        //              sp_k <= sp_k + 4'd1;
-        //              if (sp_k == 4'd8) sp_st <= SP_PIX;
-        //          end
-        SP_FETCH: if (rom_spr8_rdy) begin                      // the whole row in one DDR3 word
+        SP_FETCH: if (rom_spr8_rdy) begin
                      sp_row8 <= rom_spr8_q;
                      sp_st   <= SP_PIX;
                  end
         SP_PIX:  begin
-                     if (!sp_rom_ok) sp_rom_ok <= 1'b1;        // ROM read cycle
+                     if (!sp_rom_ok) sp_rom_ok <= 1'b1;
                      else begin
                          if (sp_pen[3] && !sp_xp[8] && !lb_taken_b[sp_xp[7:0]]) begin
                              if (build_buf) lb_taken1[sp_xp[7:0]] <= 1'b1;
@@ -688,9 +519,6 @@ always_ff @(posedge clk) begin
     endcase
 end
 
-// ------------------------------------------------------------------ tile pipeline + priority + colour PROM
-// stage 0: video RAM read (tile index from the logical position); 1: gfx1 row read; 2: line buffer read;
-// 3: palette index; 4: colour PROM read -> RGB. Blanking and sync ride the same pipeline.
 logic [7:0]  s1_code, s1_attr;
 logic [2:0]  s1_tx, s1_ty;
 logic [7:0]  s1_lx;
@@ -701,17 +529,17 @@ logic [2:0]  s2_tx;
 logic [7:0]  s2_lx;
 logic        s2_ln;
 logic [7:0]  s3_idx;
-logic [3:0]  blk[3];                                           // {visible, hs, vs, vbl}
+logic [3:0]  blk[3];
 
-assign rom_tile_a = {s1_attr[5], s1_code, s1_ty};              // code + 8 * (colour & 0x20); 32 bytes per tile
+assign rom_tile_a = {s1_attr[5], s1_code, s1_ty};
 assign lb_ra      = s2_lx;
 
 wire [7:0] t_byte = s2_row[{s2_tx[2:1], 3'b000} +: 8];
 wire [3:0] t_pen  = s2_tx[0] ? t_byte[3:0] : t_byte[7:4];
-wire       t_front = pri_low ? !t_pen[3] : t_pen[3];          // MAME set_transmask: layer-0 pens drawn over sprites
+wire       t_front = pri_low ? !t_pen[3] : t_pen[3];
 wire       s_vis   = s2_ln ? lb_vis1[s2_lx] : lb_vis0[s2_lx];
 
-wire vis_s0 = hd_pix && px >= 8'd8 && px < 8'd248;           // MAME visarea 8..247 of the 256-pixel window (horizontal)
+wire vis_s0 = hd_pix && px >= 8'd8 && px < 8'd248;
 
 always_ff @(posedge clk) begin
     if (ce_pix) begin
@@ -727,18 +555,10 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block
-// logic [7:0] pal_q;
-// dpram_dc #(.widthad_a(8)) color_prom
-// (
-//     .clock_a(clk), .address_a(prom_a), .data_a(prom_d), .wren_a(prom_wr),
-//     .clock_b(clk), .address_b(s3_idx), .q_b(pal_q)
-// );
 logic [7:0] pal_q;
 assign prom_a_o = s3_idx;
 assign pal_q    = prom_d_i;
 
-// MAME palette: R 0x23/0x4b/0x91 on bits 5-7, G on bits 2-4, B 0x52/0xad on bits 0-1
 wire [7:0] c_r = (pal_q[5] ? 8'h23 : 8'h00) + (pal_q[6] ? 8'h4B : 8'h00) + (pal_q[7] ? 8'h91 : 8'h00);
 wire [7:0] c_g = (pal_q[2] ? 8'h23 : 8'h00) + (pal_q[3] ? 8'h4B : 8'h00) + (pal_q[4] ? 8'h91 : 8'h00);
 wire [7:0] c_b = (pal_q[0] ? 8'h52 : 8'h00) + (pal_q[1] ? 8'hAD : 8'h00);
@@ -747,14 +567,12 @@ logic out_vis = 1'b0, out_hs = 1'b0, out_vs = 1'b0, out_vbl = 1'b1;
 always_ff @(posedge clk) begin
     if (ce_pix) begin
         video_r <= c_r; video_g <= c_g; video_b <= c_b;
-        {out_vis, out_hs, out_vs, out_vbl} <= blk[2];          // same pixel as the colour PROM output
+        {out_vis, out_hs, out_vs, out_vbl} <= blk[2];
     end
 end
 assign video_hblank = !out_vis;
 assign video_vblank = out_vbl;
 
-// ------------------------------------------------------------------ CRT H/V position: the CRTC's own sync,
-// re-timed from the blanking (self-calibrated each frame), so setting 0 is the native timing
 logic       hb_q = 1'b1, vb_q = 1'b1, chs_q = 1'b0, cvs_q = 1'b0;
 logic [8:0] hc = 9'd0, ln = 9'd0;
 logic [8:0] hs_pos = 9'd0, hs_len = 9'd16, vs_pos = 9'd0, vs_len = 9'd3;

@@ -52,19 +52,12 @@ module ladybug_chute (
   output logic chute_o
 );
 
-  // 2.35e-2 s = 1 / 20,000,000 Hz * 470000
   localparam logic [18:0] chute_delay_c = 19'd470000;
 
   logic [18:0] chute_cnt_q;
 
   logic [1:0]  chute_sync_q;
 
-  // ---------------------------------------------------------------------------
-  // Process sync
-  //
-  // Purpose:
-  //  Synchronize the asynchronous chute input.
-  //
   always_ff @(posedge clk_20mhz_i or negedge res_n_i) begin : sync
     if (!res_n_i) begin
       chute_sync_q <= '0;
@@ -75,13 +68,6 @@ module ladybug_chute (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process cnt
-  //
-  // Purpose:
-  //  Count the required number of 20 MHz clock cycles before emitting
-  //  chute event. This is a low pass filter for the rising edge of chute_i.
-  //
   always_ff @(posedge clk_20mhz_i or negedge res_n_i) begin : cnt
     if (!res_n_i) begin
       chute_cnt_q <= '0;
@@ -95,7 +81,6 @@ module ladybug_chute (
           chute_cnt_q <= chute_cnt_q + 19'd1;
       end
       else begin
-        // reset counter when chute input goes back to 0
         chute_cnt_q   <= '0;
         chute_o       <= 1'b0;
       end

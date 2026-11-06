@@ -25,7 +25,7 @@
     <joystick>8-way</joystick>
     <special_controls></special_controls>
     <num_buttons>2</num_buttons>
-    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,Button 2,-,-,Coin,Start 1P,Start 2P,Pause,-,-,-" default="A,B,Select,Start,R,L"/>
 
     <switches default="C7,FF">
         <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
@@ -37,7 +37,7 @@
         <dip name="Coin A" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="cavenger.zip">
         <part crc="9e0cc781" name="1.c4"/>
         <part crc="5ce5b950" name="2.d4"/>
@@ -55,7 +55,7 @@
         <part crc="27fa3a50" name="10-3.c4"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             00 00 00 00 FF 7F FF C7 FF FC 80 80 80 00 01 80
@@ -65,18 +65,18 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 1D EF 80 00 FF 00 02 00 02 00 01 11 11 00 00
             00 00 60 25 00 41 00 28
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="65"></nvram>
 
-    <!-- Index 5: MAME artwork, layout table (from default.lay) + PNGs from the artwork zip, as-is -->
-    <!-- OSD Artwork: View 1 = Upright Artwork -->
+    <!-- Index 5: Artwork -->
     <rom index="5" md5="none" zip="/mame-artwork/cavenger.zip">
         <part>
             41 57 01 00 02 00 F0 00 C0 00 00 00 00 00 00 00 FC 02 52 04 7E 00 42 02 00 02 80 01 00 59 02 00

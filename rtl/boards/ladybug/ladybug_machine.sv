@@ -1,32 +1,19 @@
-//============================================================================
-//
-//  Lady Bug machine (Universal 8106-A2 CPU board + 8106-B video board)
+// Based on MAME ladybug.cpp, sraider.cpp (Nicola Salmoria, Frank Palazzolo, BSD-3-Clause)
 //  Copyright (C) 2026 Rodimus
-//
-//  Structure from Arnim Laeuger's ladybug_machine.vhd (FPGA Lady Bug, 2005)
-//  and its MiSTer port by Sorgelig. Input ports follow MAME ladybug.cpp:
-//  IN0 9000, IN1 9001 (bits 7-5 from the video timing), DSW0 9002, DSW1 9003,
-//  IN2 E000 (bits 1-0); coin 1 -> NMI chute, coin 2 -> IRQ chute.
-//
-//  board_8203_i: Universal 8203-A/B (Space Raider, Mrs. Dynamite, MAME sraider.cpp):
-//  same video, main CPU I/O at 8000, a second Z80 with five SN76489, and the
-//  palette PROM wired to the DACs differently (mrsdyna_palette).
-//
-//============================================================================
 
 module ladybug_machine
 (
-    output chip_pool_pkg::z80pa_i_t          z80pa_0_i,   // shared main Z80 (rtl/universal_dispatcher.sv)
+    output chip_pool_pkg::z80pa_i_t          z80pa_0_i,
     input  chip_pool_pkg::z80pa_o_t          z80pa_0_o,
-    output chip_pool_pkg::z80pa_i_t          z80pa_1_i,   // shared Z80: 8203 sub
+    output chip_pool_pkg::z80pa_i_t          z80pa_1_i,
     input  chip_pool_pkg::z80pa_o_t          z80pa_1_o,
-    output chip_pool_pkg::sn76489_i_t  [6:0] sn76489_i,   // shared SN76489s: 0-1 sound unit, 2-6 8203 sub
+    output chip_pool_pkg::sn76489_i_t  [6:0] sn76489_i,
     input  chip_pool_pkg::sn76489_o_t  [6:0] sn76489_o,
-    input  logic               clk_20mhz_i,     // 19.656 MHz
+    input  logic               clk_20mhz_i,
     input  logic               ext_res_n_i,
     input  logic               pause_i,
     input  logic               decrypt_en_i,
-    input  logic               p2_follows_p1_i, // MAME ladybug_p2_control_r: upright cabinet reads P1 controls for P2
+    input  logic               p2_follows_p1_i,
     input  logic               board_8203_i,
 
     input  logic         [7:0] in0_i,
@@ -37,12 +24,12 @@ module ladybug_machine
     input  logic               coin1_i,
     input  logic               coin2_i,
 
-    output logic               clk_en_5mhz_o,   // pixel clock enable
+    output logic               clk_en_5mhz_o,
     output logic         [1:0] rgb_r_o,
     output logic         [1:0] rgb_g_o,
     output logic         [1:0] rgb_b_o,
-    output logic               bg_o,            // background pixel (8203 overlay)
-    output logic         [7:0] ctrl_o,          // 8203 sub CPU control latch
+    output logic               bg_o,
+    output logic         [7:0] ctrl_o,
     output logic               grid_wr_o,
     output logic         [7:0] grid_a_o,
     output logic         [7:0] grid_d_o,
@@ -63,12 +50,6 @@ module ladybug_machine
     output logic        [14:0] rom_sub_a_o,
     input  logic         [7:0] rom_sub_d_i,
 
-    // ROMPOOL-2026-10-27: PROMs are dispatcher ROM blocks (read ports); originals:
-    // input  logic         [4:0] prom_a_i,
-    // input  logic         [7:0] prom_d_i,
-    // input  logic               prom_k1_wr_i,
-    // input  logic               prom_f4_wr_i,
-    // input  logic               prom_c4_wr_i,
     output logic         [4:0] prom_k1_a_o,
     input  logic         [7:0] prom_k1_d_i,
     output logic         [4:0] prom_f4_a_o,
@@ -81,7 +62,6 @@ module ladybug_machine
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
 
-    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
     output ram_pool_pkg::pram_i_t [8:0] pr_i,
     input  ram_pool_pkg::pram_o_t [8:0] pr_o
 );
@@ -128,7 +108,6 @@ ladybug_res res_b
 assign gpio_in0_s   = in0_i;
 assign gpio_in1_s   = board_8203_i ? in1_i :
                       {vbl_buf_s, vbl_tick_n_s, vc_s, p2_follows_p1_i && !dsw0_i[5] ? in0_i[4:0] : in1_i[4:0]};
-// E000-E003 read bit pairs {extra[7-n], extra[3-n]}; only E000 carries inputs (MAME IN2 bits 1-0)
 assign gpio_extra_s = {in2_i[1], 3'b111, in2_i[0], 3'b111};
 
 assign hs_cs_cpu   = (hs_address[15:12] == 4'h6);
@@ -220,12 +199,6 @@ ladybug_video_unit video_b
     .rom_char_d_i     (rom_char_d_i),
     .rom_sprite_a_o   (rom_sprite_a_o),
     .rom_sprite_d_i   (rom_sprite_d_i),
-    // ROMPOOL-2026-10-27: originals
-    // .prom_a_i         (prom_a_i),
-    // .prom_d_i         (prom_d_i),
-    // .prom_k1_wr_i     (prom_k1_wr_i),
-    // .prom_f4_wr_i     (prom_f4_wr_i),
-    // .prom_c4_wr_i     (prom_c4_wr_i),
     .prom_k1_a_o      (prom_k1_a_o),
     .prom_k1_d_i      (prom_k1_d_i),
     .prom_f4_a_o      (prom_f4_a_o),
@@ -256,7 +229,6 @@ ladybug_sound_unit sound_b
     .audio_o        (audio_lb_s)
 );
 
-// 8203 palette PROM to DAC wiring (MAME mrsdyna_palette): {220 ohm, 470 ohm} = R {D0, D3}, G {D4, D5}, B {D6, D7}
 assign rgb_r_o = board_8203_i ? {rgb_n_s[1], rgb_n_s[4]} : lb_r_s;
 assign rgb_g_o = board_8203_i ? {rgb_n_s[5], rgb_n_s[6]} : lb_g_s;
 assign rgb_b_o = board_8203_i ? {rgb_n_s[7], rgb_n_s[8]} : lb_b_s;

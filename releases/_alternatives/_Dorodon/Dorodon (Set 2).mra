@@ -25,7 +25,7 @@
     <joystick>4-way</joystick>
     <special_controls></special_controls>
     <num_buttons>0</num_buttons>
-    <buttons names="Not Used,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="-,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,Rack Test" default="Select,Start,R,L"/>
 
     <switches default="DF,FF">
         <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
@@ -39,7 +39,7 @@
         <dip name="Coin A" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="6,8,10,7,15,9,14,13,12,11"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="dorodon2.zip|dorodon.zip">
         <part crc="4d05d6f8" name="1.3fg"/>
         <part crc="27b43b09" name="2.3h"/>
@@ -57,7 +57,7 @@
         <part crc="47b2f0bb" name="dorodon.bp3"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             00 11 01 00 FF 7F FF DF FF FC 80 80 80 00 01 80
@@ -67,7 +67,7 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 3B DF 00 00 FF 00 02 00 02 00 01 11 11 00 00
@@ -75,6 +75,7 @@
             00 00 D3 81 00 46 0F 17
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="97"></nvram>
 

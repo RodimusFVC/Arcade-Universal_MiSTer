@@ -25,7 +25,7 @@
     <joystick>8-way</joystick>
     <special_controls></special_controls>
     <num_buttons>1</num_buttons>
-    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,-" default="A,Select,Start,R,L"/>
 
     <switches default="C2">
         <dip name="Bonus Life" bits="0,1" ids="2000,3000,5000,None" values="1,2,3,0"/>
@@ -34,7 +34,7 @@
         <dip name="Cabinet" bits="5" ids="Upright,Cocktail"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="nomnlnd.zip">
         <part crc="ba117ba6" name="1.bin"/>
         <part crc="e5ed654f" name="2.bin"/>
@@ -55,7 +55,7 @@
         <part crc="65e911f9" name="nml.d9"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             11 10 00 00 FF FF C2 FE FF FE 80 80 00 80 80 80
@@ -65,7 +65,7 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 2E 08 57 00 FF 00 02 00 02 00 01 11 11 00 00
@@ -73,6 +73,7 @@
             00 00 6C 5D 06 C0 FF 00
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="1731"></nvram>
 

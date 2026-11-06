@@ -18,6 +18,26 @@ import xml.etree.ElementTree as ET
 import re
 import sys
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "RodimusCoresMaster_MiSTer" / "tools"))
+import mra_tidy                                     # noqa: E402  fleet MRA comment format
+
+
+# Fleet twin-stick rule (2026-11-04): the right-hand fire stick is also on the pad face buttons.
+TWIN_PAD = {"R Right": "A", "R Down": "B", "R Up": "X", "R Left": "Y"}
+
+
+def twin_defaults(names):
+    """default= for a twin-stick set: fire stick on A/B/X/Y; the game's own buttons -> R, then a face button the stick
+    leaves free (none free: no default); Coin = Select, Start 1P = Start, Pause = L, Start 2P = none once R is taken."""
+    slots = [n for n in names.split(",") if n != "-"]
+    extra = [n for n in slots if n not in TWIN_PAD and n not in ("Coin", "Start 1P", "Start 2P", "Pause")]
+    free = [k for k in ("B", "X", "Y", "A") if k not in {TWIN_PAD[n] for n in slots if n in TWIN_PAD}]
+    keys = {"Coin": "Select", "Start 1P": "Start", "Start 2P": "R", "Pause": "L", **{n: TWIN_PAD[n] for n in slots if n in TWIN_PAD}}
+    for n, k in zip(extra, ["R"] + free + [""] * len(extra)):
+        keys[n] = k
+    if extra:
+        keys["Start 2P"] = ""
+    return ",".join(keys[n] for n in slots)
 
 MAME_VERSION = "0289"
 RBF = "Universal"
@@ -942,9 +962,9 @@ def mra(g, games, segs, build_inputs, with_art=False):
     if twin:                                           # Btn 3-6 carry the right-hand stick
         buttons.update({3: "R Right", 4: "R Left", 5: "R Down", 6: "R Up"})
         nbtn = 6
-    names = ",".join([buttons.get(i, "Not Used") for i in range(1, 5)] + ["Coin", "Start 1P", "Start 2P", "Pause"] +
-                     [buttons.get(i, "Not Used") for i in (5, 6)] +
-                     ["Rack Test" if RACK_HOLD in imap or RACK_TOGGLE in imap else "Not Used"])
+    names = ",".join([buttons.get(i, "-") for i in range(1, 5)] + ["Coin", "Start 1P", "Start 2P", "Pause"] +
+                     [buttons.get(i, "-") for i in (5, 6)] +
+                     ["Rack Test" if RACK_HOLD in imap or RACK_TOGGLE in imap else "-"])
     parent = g["parent"] or g["name"]
     zipname = f'{g["name"]}.zip' + (f'|{g["parent"]}.zip' if g["parent"] else "")
     rotation = {"ROT0": "horizontal", "ROT270": "vertical (ccw)", "ROT90": "vertical (cw)"}[g["rot"]]
@@ -1018,7 +1038,7 @@ def mra(g, games, segs, build_inputs, with_art=False):
     <joystick>{"2-way" if twoway else "4-way" if fourway else "8-way"}</joystick>
     <special_controls>{"trackball" if any(24 <= i < 32 for i in imap) else "twin stick" if twin else ""}</special_controls>
     <num_buttons>{nbtn}</num_buttons>
-    <buttons names="{names}" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="{names}" default="{twin_defaults(names) if twin else mra_tidy.button_defaults(names)}"/>
 
     <switches default="{",".join(f"{idle[p]:02X}" for p in dip_ports)}">
 {dip_lines}
@@ -1095,7 +1115,7 @@ def main():
         for root, with_art in [(out_dir, False)] + ([(out_dir / "_artwork", True)] if art_name(g) else []):
             path = out_path(root, g, games)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(mra(g, games, segs, build_inputs, with_art))
+            path.write_text(mra_tidy.tidy(mra(g, games, segs, build_inputs, with_art)))
             print(f'{name:12s} {path.relative_to(out_dir)}')
 
 

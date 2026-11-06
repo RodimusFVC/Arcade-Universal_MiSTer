@@ -55,7 +55,6 @@ module ladybug_res (
   output logic por_n_o
 );
 
-  // 4.7e-2 s = 1 / 20,000,000 Hz * 940000
   localparam logic [19:0] res_delay_c = 20'd940000;
 
   logic [1:0]  res_sync_n_q;
@@ -69,12 +68,6 @@ module ladybug_res (
   assign por_n_o = por_n_q;
   assign res_n_o = res_n_q;
 
-  // ---------------------------------------------------------------------------
-  // Process por_cnt
-  //
-  // Purpose:
-  //   Generate a power-on reset for 4 clock cycles.
-  //
   always_ff @(posedge clk_20mhz_i) begin : por_cnt
     if (por_cnt_q == 2'b11)
       por_n_q   <= 1'b1;
@@ -82,12 +75,6 @@ module ladybug_res (
       por_cnt_q <= por_cnt_q + 2'd1;
   end
 
-  // ---------------------------------------------------------------------------
-  // Process res_sync
-  //
-  // Purpose:
-  //   Synchronize asynchronous external reset to main 20 MHz clock.
-  //
   always_ff @(posedge clk_20mhz_i or negedge ext_res_n_i or negedge por_n_q) begin : res_sync
     if (ext_res_n_i == 1'b0 || por_n_q == 1'b0) begin
       res_sync_n_q <= '0;
@@ -98,15 +85,6 @@ module ladybug_res (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process res_delay
-  //
-  // Purpose:
-  //   Delay reset event (external or power-on) by 4.7e-2 s.
-  //   Reset delay is taken from Lady Bug reset circuit using NE555.
-  //   This duration might be too long for the actual requirements of the
-  //   FPGA circuit.
-  //
   always_ff @(posedge clk_20mhz_i or negedge res_sync_n_q[1]) begin : res_delay
     if (res_sync_n_q[1] == 1'b0) begin
       res_delay_q <= '0;

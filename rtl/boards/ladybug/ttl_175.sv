@@ -58,15 +58,6 @@ module ttl_175 (
   logic [4:1] flops_q;
   logic [4:1] flops_s;
 
-  // ---------------------------------------------------------------------------
-  // Process flops
-  //
-  // Purpose:
-  //   Implement the sequential elements.
-  //
-  //   Note: We assume that the sequential elements power-up to the same state
-  //         as forced into by cl_n_i.
-  //
   always_ff @(posedge ck_i or negedge por_n_i) begin : flops
     if (!por_n_i)
       flops_q <= '0;
@@ -74,14 +65,7 @@ module ttl_175 (
       flops_q <= flops_s;
   end
 
-  // ---------------------------------------------------------------------------
-  // Process comb
-  //
-  // Purpose:
-  //   Implements the combinational logic.
-  //
   always_comb begin : comb
-    // default assignments
     flops_s = flops_q;
 
     if (cl_n_i == 1'b1) begin
@@ -89,14 +73,10 @@ module ttl_175 (
         flops_s = d_i;
     end
     else begin
-      // pseudo-asynchronous clear
       flops_s = '0;
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Output Mapping
-  // ---------------------------------------------------------------------------
   assign q_o   = flops_q;
   assign q_n_o = ~flops_q;
   assign d_o   = flops_s;

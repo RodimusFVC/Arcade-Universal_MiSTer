@@ -1,23 +1,11 @@
-//============================================================================
-//
-//  Universal 8203-A sound / video-control CPU (Space Raider, Mrs. Dynamite)
 //  Copyright (C) 2026 Rodimus
-//
-//  From MAME sraider.cpp (Frank Palazzolo) cpu2_map / cpu2_io_map:
-//    0000-5FFF ROM (H6, J6, L6)          6000-63FF RAM, mirrored at 6400 (2x 2114)
-//    8000 read sound latch low (P6)      A000 read sound latch high (R6)
-//    C000 read 556 outputs on D1-D0      E000-E0FF grid RAM (mirror 0x300), write only
-//    E800-EFFF control (LS273 D4): [2:0] star speed, [3] star enable, [6:4] grid R/G/B, [7] flip
-//    I/O 00-27 five SN76489 (8 ports each), 28-3F sound-resistor latches (not emulated, as MAME)
-//  IRQ on vblank, held until acknowledged (MAME irq0_line_hold).
-//
-//============================================================================
+// Based on MAME sraider.cpp (Frank Palazzolo, BSD-3-Clause)
 
 module sraider_sub
 (
-    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,   // shared Z80 (rtl/universal_dispatcher.sv)
+    output chip_pool_pkg::z80pa_i_t         z80pa_1_i,
     input  chip_pool_pkg::z80pa_o_t         z80pa_1_o,
-    output chip_pool_pkg::sn76489_i_t [4:0] sn76489_i,   // shared SN76489s 2-6
+    output chip_pool_pkg::sn76489_i_t [4:0] sn76489_i,
     input  chip_pool_pkg::sn76489_o_t [4:0] sn76489_o,
     input  logic               clk,
     input  logic               cen_p,
@@ -39,7 +27,6 @@ module sraider_sub
 
     output logic signed [15:0] audio,
 
-    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
     output ram_pool_pkg::pram_i_t pr_i,
     input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -49,7 +36,6 @@ logic [15:0] a;
 logic  [7:0] din, dout, ram_q;
 logic        int_n = 1'b1, vbl_d = 1'b0;
 
-// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_1_i.reset_n = res_n;
 assign z80pa_1_i.cen_p   = cen_p & ~pause;
 assign z80pa_1_i.cen_n   = cen_n & ~pause;
@@ -81,17 +67,10 @@ wire ctrl_cs = mem && a[15:11] == 5'b11101;
 
 assign rom_a = a[14:0];
 
-// RAMPOOL-2026-10-27: original instance below; now board RAM pool block (universal_dispatcher.sv)
-// dpram_dc #(.widthad_a(10)) ram
-// (
-//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(ram_cs && !wr_n), .q_a(ram_q),
-//     .clock_b(clk)
-// );
-assign pr_i.a_addr = {5'd0, a[9:0]};  assign pr_i.a_d = dout;  assign pr_i.a_we = ram_cs && !wr_n;
-assign pr_i.b_addr = 15'd0;           assign pr_i.b_d = 8'd0;  assign pr_i.b_we = 1'b0;
+assign pr_i.a_addr = {6'd0, a[9:0]};  assign pr_i.a_d = dout;  assign pr_i.a_we = ram_cs && !wr_n;
+assign pr_i.b_addr = 16'd0;           assign pr_i.b_d = 8'd0;  assign pr_i.b_we = 1'b0;
 assign ram_q = pr_o.a_q;
 
-// 556 dual timer on D1-D0: MAME returns random bits; a free-running LFSR stands in
 logic [15:0] rnd = 16'hACE1;
 always_ff @(posedge clk) rnd <= {rnd[14:0], rnd[15] ^ rnd[13] ^ rnd[12] ^ rnd[10]};
 
@@ -113,14 +92,12 @@ always_ff @(posedge clk) begin
     else if (ctrl_cs && !wr_n) ctrl <= dout;
 end
 
-// Five SN76489 on I/O 00-27
 wire io_wr = !iorq_n && m1_n && !wr_n;
 logic signed [10:0] sn_out[5];
 
 genvar i;
 generate
     for (i = 0; i < 5; i++) begin : sn
-        // the shared SN76489s in rtl/universal_dispatcher.sv
         assign sn76489_i[i].rst  = ~res_n;
         assign sn76489_i[i].ce   = cen_p & ~pause;
         assign sn76489_i[i].wr_n = ~(io_wr && a[7:3] == i);
@@ -130,7 +107,9 @@ generate
     end
 endgenerate
 
-wire signed [13:0] sum = sn_out[0] + sn_out[1] + sn_out[2] + sn_out[3] + sn_out[4];
-assign audio = {sum, 2'd0};
+// sn76489sv sound is unipolar 0..1020 (0 when silent, no DC at rest): 5 chips max 5100, x6 = 30600 fits int16, no clamp needed
+wire        [12:0] sum   = {2'b0, sn_out[0]} + {2'b0, sn_out[1]} + {2'b0, sn_out[2]} + {2'b0, sn_out[3]} + {2'b0, sn_out[4]};
+wire        [15:0] sum_x = sum * 16'd6;
+assign audio = $signed(sum_x);
 
 endmodule

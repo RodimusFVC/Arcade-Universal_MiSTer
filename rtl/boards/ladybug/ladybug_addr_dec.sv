@@ -57,22 +57,11 @@ module ladybug_addr_dec (
   output logic        ram_cpu_cs_n_o
 );
 
-  // ---------------------------------------------------------------------------
-  // Process adec
-  //
-  // Purpose:
-  //   Decode the CPU address and generate one-hot chip select signals.
-  //   Each chip select enables a 4 KByte address segment.
-  //
-  //   The chip select outputs are registered with the 20 MHz clock to
-  //   break potentially long combinational paths here.
-  //
   always_ff @(posedge clk_20mhz_i or negedge res_n_i) begin : adec
     if (!res_n_i) begin
       cs_n_o <= '1;
     end
     else begin
-      // default assignment
       cs_n_o <= '1;
 
       if (a_i[15] == 1'b0) begin
@@ -88,12 +77,6 @@ module ladybug_addr_dec (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process cs_ext_ram
-  //
-  // Purpose:
-  //   Builds the combinational chip select signal for the external CPU RAM.
-  //
   always_comb begin : cs_ext_ram
     if ((rd_n_i == 1'b0 || wr_n_i == 1'b0) &&
         a_i[15:12] == 4'b0110) begin

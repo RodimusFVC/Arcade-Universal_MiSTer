@@ -58,9 +58,6 @@ module ladybug_chutes (
   logic right_chute_s, left_chute_s;
   logic left_chute_q;
 
-  // ---------------------------------------------------------------------------
-  // Pulse shaper for Right Chute
-  // ---------------------------------------------------------------------------
   ladybug_chute right_chute_b (
     .clk_20mhz_i (clk_20mhz_i),
     .res_n_i     (res_n_i),
@@ -68,9 +65,6 @@ module ladybug_chutes (
     .chute_o     (right_chute_s)
   );
 
-  // ---------------------------------------------------------------------------
-  // Pulse shaper for Left Chute
-  // ---------------------------------------------------------------------------
   ladybug_chute left_chute_b (
     .clk_20mhz_i (clk_20mhz_i),
     .res_n_i     (res_n_i),
@@ -78,14 +72,6 @@ module ladybug_chutes (
     .chute_o     (left_chute_s)
   );
 
-  // ---------------------------------------------------------------------------
-  // Process left_edge
-  //
-  // Purpose:
-  //   Implement the edge detector for the left chute.
-  //   Only a rising edge of the filtered chute input can trigger a new
-  //   interrupt to the CPU.
-  //
   always_ff @(posedge clk_20mhz_i or negedge res_n_i) begin : left_edge
     if (!res_n_i) begin
       left_chute_q <= 1'b0;
@@ -95,19 +81,14 @@ module ladybug_chutes (
       left_chute_q <= left_chute_s;
 
       if (cs8_n_i == 1'b0) begin
-        // synchronous set, has priority over data path
         int_n_o <= 1'b1;
       end
-      // edge detector
       else if (left_chute_s == 1'b1 && left_chute_q == 1'b0) begin
         int_n_o <= 1'b0;
       end
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Output Mapping
-  // ---------------------------------------------------------------------------
   assign nmi_n_o = ~right_chute_s;
 
 endmodule

@@ -57,36 +57,23 @@ module ladybug_gpio (
   output logic [7:0] d_o
 );
 
-  // ---------------------------------------------------------------------------
-  // Process gpio
-  //
-  // Purpose:
-  //   Multiplex the IN and EXTRA inputs onto the data bus for CPU.
-  //
   always_comb begin : gpio
     logic [1:0] cs_n_v;
 
-    // default assignment with inactive bus value
     d_o = '1;
 
     cs_n_v = {cs_extra_n_i, cs_in_n_i};
     case (cs_n_v)
-      // IN ports and DIP switches selected -----------------------------------
       2'b10: begin
         case (a_i)
-          // IN 0 addressed
           2'b00: d_o = in0_i;
-          // IN 1 addressed
           2'b01: d_o = in1_i;
-          // DIP 0 addressed
           2'b10: d_o = in2_i;
-          // DIP 1 addressed
           2'b11: d_o = in3_i;
           default: ;
         endcase
       end
 
-      // Extra bank selected --------------------------------------------------
       2'b01: begin
         case (a_i)
           2'b00: begin

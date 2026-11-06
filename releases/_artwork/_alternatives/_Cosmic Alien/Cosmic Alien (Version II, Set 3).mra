@@ -25,7 +25,7 @@
     <joystick>2-way</joystick>
     <special_controls></special_controls>
     <num_buttons>1</num_buttons>
-    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,-" default="A,Select,Start,R,L"/>
 
     <switches default="FE">
         <dip name="Cabinet" bits="0" ids="Upright,Cocktail"/>
@@ -34,7 +34,7 @@
         <dip name="Bonus Life" bits="4,5" ids="5000,10000,15000,None" values="3,2,1,0"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="cosmica23.zip|cosmica.zip">
         <part crc="2303333f" name="1-al2019-2516.e3"/>
         <part crc="20710582" name="2-al202a-2516.e4"/>
@@ -53,7 +53,7 @@
         <part crc="dfb60f19" name="mmi-6331.d9"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             0E 10 00 00 FF FF FF FE FF FE 80 80 80 00 80 80
@@ -63,18 +63,18 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 0A 3A BE 00 FF 00 02 00 02 00 01 11 11 00 00
             00 00 40 0E 00 03 00 00
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="3"></nvram>
 
-    <!-- Index 5: MAME artwork, layout table (from default.lay) + PNGs from the artwork zip, as-is -->
-    <!-- OSD Artwork: View 1 = Upright Artwork -->
+    <!-- Index 5: Artwork -->
     <rom index="5" md5="none" zip="/mame-artwork/cosmica.zip">
         <part>
             41 57 01 00 02 00 00 01 C0 00 01 00 00 00 00 00 BE 02 FC 03 9C 00 A2 01 80 01 00 02 00 AA 02 00

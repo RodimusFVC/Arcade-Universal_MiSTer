@@ -25,7 +25,7 @@
     <joystick>4-way</joystick>
     <special_controls></special_controls>
     <num_buttons>2</num_buttons>
-    <buttons names="Fire,Button 2,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,Button 2,-,-,Coin,Start 1P,Start 2P,Pause,-,-,Rack Test" default="A,B,Select,Start,R,L"/>
 
     <switches default="FF,DF,FF">
         <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
@@ -37,7 +37,7 @@
         <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="kickridr.zip">
         <part repeat="0x20000">00</part>
         <part crc="dfdd1ab4" name="k1"/>
@@ -57,7 +57,7 @@
         <part crc="847584d3" name="k9"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             08 01 00 00 FF FF FF DF FF FF 80 80 00 01 02 80
@@ -67,13 +67,14 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 19 23 00 00 FF 00 02 00 02 00 01 11 11 00 00
             00 00 20 20 00 50 01 00
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="80"></nvram>
 

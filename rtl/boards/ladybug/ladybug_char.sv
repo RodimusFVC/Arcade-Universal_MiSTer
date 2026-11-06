@@ -55,16 +55,14 @@
 // SystemVerilog translation 2026 (Rodimus) of the MiSTer port by Sorgelig
 
 module ladybug_char (
-  // Clock and Reset Interface ------------------------------------------------
   input  logic        clk_20mhz_i,
   input  logic        por_n_i,
   input  logic        res_n_i,
   input  logic        clk_en_5mhz_i,
   input  logic        clk_en_4mhz_i,
-  // CPU Interface ------------------------------------------------------------
   input  logic        cs10_n_i,
   input  logic        cs13_n_i,
-  input  logic        flip_ext_en_i,  // Universal: 8203 board, flip from the sound CPU's LS273 (bit 7)
+  input  logic        flip_ext_en_i,
   input  logic        flip_ext_i,
   input  logic [10:0] a_i,
   input  logic        rd_n_i,
@@ -72,7 +70,6 @@ module ladybug_char (
   output logic        wait_n_o,
   input  logic [7:0]  d_from_cpu_i,
   output logic [7:0]  d_from_char_o,
-  // RGB Video Interface ------------------------------------------------------
   input  logic [3:0]  h_i,
   input  logic [3:0]  h_t_i,
   input  logic        ha_t_rise_i,
@@ -85,7 +82,6 @@ module ladybug_char (
   output logic [5:1]  crg_o,
   output logic        vblank_o,
   output logic        hblank_o,
-  // Character ROM Interface --------------------------------------------------
   output logic [11:0] rom_char_a_o,
   input  logic [15:0] rom_char_d_i,
 
@@ -94,7 +90,6 @@ module ladybug_char (
   input  logic [7:0]  hs_data_in,
   input  logic        hs_write,
 
-  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
   output ram_pool_pkg::pram_i_t [1:0] pr_i,
   input  ram_pool_pkg::pram_o_t [1:0] pr_o
 );
@@ -152,25 +147,13 @@ module ladybug_char (
 
   logic       hbl_q, hbl_d;
 
-  // NOTE(translation): VHDL "integer" signal, no reset and no initial value
-  // (cleared only by the hbl falling-edge detect). Kept as 32-bit int.
   int         hcnt;
   logic       vdd_s;
 
   assign vdd_s = 1'b1;
 
-  // ---------------------------------------------------------------------------
-  // Process flip
-  //
-  // Purpose:
-  //   Implement the flip_screen flag.
-  //
   always_ff @(posedge clk_20mhz_i or negedge res_n_i) begin : flip
     if (!res_n_i) begin
-      // Actually, this asynchronous reset of the ls259 is not 100%
-      // equivalent to the real behavior of this circuit. However,
-      // the flip_screen latch is modelled like this for the sake of
-      // simplicity. It's sufficient for the purpose here.
       flip_screen_q <= 1'b0;
     end
     else begin
@@ -183,38 +166,23 @@ module ladybug_char (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process h_flip
-  //
-  // Purpose:
-  //   Build the flipped horizontal timing signals.
-  //
   always_comb begin : h_flip
     logic [8:0] a_v, b_v, sum_v;
 
-    // calculate sum
     a_v   = {1'b0, s_q};
     b_v   = {1'b0, h_t_i, h_i};
     sum_v = a_v + b_v;
 
-    // h0,1,2 are taken from directly from sum
     h0_s  = sum_v[0];
     h1_s  = sum_v[1];
     h2_s  = sum_v[2];
 
-    // now flip
     for (int idx = 3; idx >= 0; idx--) begin
       h_flip_s[idx]   = flip_screen_q ^ sum_v[idx];
       h_t_flip_s[idx] = flip_screen_q ^ sum_v[idx + 4];
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process v_flip
-  //
-  // Purpose:
-  //   Build the flipped horizontal timing signals.
-  //
   always_comb begin : v_flip
     for (int idx = 3; idx >= 0; idx--) begin
       v_flip_s[idx]   = flip_screen_q ^ v_i[idx];
@@ -222,10 +190,6 @@ module ladybug_char (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // The Horizontal Control Signals
-  // Detailed purpose/meaning is unknown.
-  // ---------------------------------------------------------------------------
   assign h_ctrl_d_s[1] = ~(~h2_s & (h1_s ^ h0_s));
   assign h_ctrl_d_s[2] = hx_i;
   assign h_ctrl_d_s[3] = ~((h1_s ^ h0_s) | (~h2_s ^ h1_s));
@@ -244,12 +208,6 @@ module ladybug_char (
   assign h_ctrl_rise_s   = ~h_ctrl_s & h_ctrl_d_out_s;
   assign h_ctrl_n_rise_s = h_ctrl_s & ~h_ctrl_d_out_s;
 
-  // ---------------------------------------------------------------------------
-  // Process ctrl_seq
-  //
-  // Purpose:
-  //   Implemente the various sequential elements for horizontal control.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : ctrl_seq
     if (!por_n_i) begin
       hx_ctrl_q        <= 1'b0;
@@ -260,51 +218,33 @@ module ladybug_char (
       cgs_q            <= 1'b0;
     end
     else begin
-      // the HX control flip-flop
       hx_ctrl_q <= hx_ctrl_s;
 
-      // the clear counterpart of hx_ctrl_q
       if (h_ctrl_s[2] == 1'b0) begin
-        // pseudo-asynchronous clear
         hx_ctrl_clear_q <= 1'b0;
       end
       else if (hx_ctrl_n_rise_s == 1'b1) begin
-        // rising edge indicator acts as clock enable instead of clock
         hx_ctrl_clear_q <= 1'b1;
       end
 
-      // the mysterious B1 flip-flop
       b1_ff_q <= b1_ff_s;
 
-      // the CGS rising edge indicator support flip-flops
       cgs_q <= cgs_s;
 
-      // the WAIT flip-flop
       if (wait_clear_q == 1'b1) begin
-        // pseudo-asynchronous clear
         wait_q <= 1'b0;
       end
       else if (cgs_rise_s == 1'b1) begin
-        // rising edge indicator acts as clock enable instead of clock
         wait_q <= 1'b1;
       end
 
-      // the clear counterpart of wait_q
       if (clk_en_4mhz_i == 1'b1) begin
         wait_clear_q <= wait_q & (h_ctrl_s[3] & (b1_ff_q | hx_ctrl_q));
       end
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process ctrl_comp
-  //
-  // Purpose:
-  //   Implements the combination logic for the horizontal control
-  //   elements.
-  //
   always_comb begin : ctrl_comp
-    // default assignments
     hx_ctrl_s        = hx_ctrl_q;
     hx_ctrl_n_rise_s = 1'b0;
     b1_ff_s          = b1_ff_q;
@@ -312,112 +252,83 @@ module ladybug_char (
     cgs_s            = cgs_q;
     cgs_rise_s       = 1'b0;
 
-    // the HX control flip-flop -----------------------------------------------
     if (hx_ctrl_clear_q == 1'b1) begin
-      // pseudo-asynchronous clear
       hx_ctrl_s          = 1'b0;
 
       if ((~hx_ctrl_q) == 1'b0) begin
-        // detct rising edge of inverted ouput
         hx_ctrl_n_rise_s = 1'b1;
       end
     end
     else if (h_ctrl_rise_s[1] == 1'b1) begin
-      // rising edge indicator acts as clock enable instead of clock
       if (hx_i == 1'b1) begin
-        // toggle FF
         hx_ctrl_s        = ~hx_ctrl_q;
 
         if ((~hx_ctrl_q) == 1'b0) begin
-          // detct rising edge of inverted ouput
           hx_ctrl_n_rise_s = 1'b1;
         end
       end
     end
 
-    // the mysterious B1 flip-flop --------------------------------------------
     if (hx_ctrl_q == 1'b1) begin
-      // pseudo-asynchronous clear
       b1_ff_s = 1'b0;
 
       if ((~b1_ff_q) == 1'b0) begin
-        // detct rising edge of inverted ouput
         b1_ff_n_rise_s = 1'b1;
       end
     end
     else if (h_ctrl_n_rise_s[3] == 1'b1) begin
-      // rising edge indicator acts as clock enable instead of clock
       b1_ff_s = 1'b1;
     end
 
-    // the CGS rising edge indicator support flip-flop ------------------------
     cgs_s      = ~cs13_n_i;
     cgs_rise_s = ~cgs_q & ~cs13_n_i;
   end
 
-  // ---------------------------------------------------------------------------
-  // Process ram_addr
-  //
-  // Purpose:
-  //   Multiplexes the CPU address bus and the h+v timing control signals to
-  //   form the RAM address bus.
-  //
   always_comb begin : ram_addr
     logic       a_v, b_v, g_n_v;
     logic [1:0] vec_v;
 
-    // default assignment
     ram_addr_s = '0;
 
-    // logic that drives A input of IC L4 and K4
     a_v = ~(h_ctrl_n_s[1] & (b1_ff_q | hx_ctrl_q));
-    // logic that drives B input of IC L4 and K4
     b_v = hx_ctrl_q;
-    // logic that drives /G input of IC J4
     g_n_v = hx_ctrl_q & (h_ctrl_n_s[1] & (b1_ff_q | hx_ctrl_q));
 
-    // IC L4 and K4: Dual 4:1 Multiplexer -------------------------------------
     vec_v = {b_v, a_v};
     case (vec_v)
       2'b00: begin
         ram_addr_s[0] = h_flip_s  [3];
         ram_addr_s[1] = h_t_flip_s[0];
-        //
         ram_addr_s[2] = h_t_flip_s[1];
         ram_addr_s[3] = h_t_flip_s[2];
       end
       2'b01: begin
         ram_addr_s[0] = a_i[0];
         ram_addr_s[1] = a_i[1];
-        //
         ram_addr_s[2] = a_i[2];
         ram_addr_s[3] = a_i[3];
       end
       2'b10: begin
         ram_addr_s[0] = v_t_flip_s[1];
         ram_addr_s[1] = v_t_flip_s[2];
-        //
         ram_addr_s[2] = v_t_flip_s[3];
         ram_addr_s[3] = 1'b0;
       end
       2'b11: begin
         ram_addr_s[0] = a_i[0];
         ram_addr_s[1] = a_i[1];
-        //
         ram_addr_s[2] = a_i[2];
         ram_addr_s[3] = a_i[3];
       end
       default: ;
     endcase
 
-    // IC J4 and H4: Quad 2:1 Multiplexer -------------------------------------
     case (a_v)
       1'b0: begin
         ram_addr_s[4] = h_t_flip_s[3] & ~g_n_v;
         ram_addr_s[7] = v_t_flip_s[1] & ~g_n_v;
         ram_addr_s[8] = v_t_flip_s[2] & ~g_n_v;
         ram_addr_s[9] = v_t_flip_s[3] & ~g_n_v;
-        //
         ram_addr_s[5] = v_flip_s  [3];
         ram_addr_s[6] = v_t_flip_s[0];
       end
@@ -426,7 +337,6 @@ module ladybug_char (
         ram_addr_s[7] = a_i[7]      & ~g_n_v;
         ram_addr_s[8] = a_i[8]      & ~g_n_v;
         ram_addr_s[9] = a_i[9]      & ~g_n_v;
-        //
         ram_addr_s[5] = a_i[5];
         ram_addr_s[6] = a_i[6];
       end
@@ -436,16 +346,6 @@ module ladybug_char (
     select_a_s = a_v;
   end
 
-  // ---------------------------------------------------------------------------
-  // Process ram_ctrl
-  //
-  // Purpose:
-  //   Generate the control signals for the character and color RAMs.
-  //   This comprises:
-  //     * reading RAMs while the beam sweeps the screen
-  //     * reading RAMs to the CPU
-  //     * writing RAMs from the CPU
-  //
   always_comb begin : ram_ctrl
     logic       cpu_read_char_ram_v;
     logic       cpu_write_char_ram_v;
@@ -453,7 +353,6 @@ module ladybug_char (
     logic       cpu_write_col_ram_v;
     logic [2:0] vec_v;
 
-    // default assignments
     char_ram_cs_n_s      = 1'b1;
     char_ram_we_n_s      = 1'b1;
     col_ram_cs_n_s       = 1'b1;
@@ -465,9 +364,6 @@ module ladybug_char (
     cpu_write_col_ram_v  = 1'b0;
     vec_v                = '0;
 
-    // detect and decode CPU access
-    // Gating the RAM access here with clk_en_4mhz_i causes very short data output.
-    //if clk_en_4mhz_i = '1' and          -- operate RAMs with CPU clock
     if ((~cs13_n_i & select_a_s & ~wait_q) == 1'b1) begin
       vec_v = {a_i[10], rd_n_i, wr_n_i};
       case (vec_v)
@@ -479,7 +375,6 @@ module ladybug_char (
       endcase
     end
 
-    // now we are prepared to generate the /CS and /WE signals for the RAMs
     if (select_a_s == 1'b0 ||
         cpu_read_char_ram_v || cpu_write_char_ram_v) begin
       char_ram_cs_n_s = 1'b0;
@@ -495,7 +390,6 @@ module ladybug_char (
       col_ram_we_n_s  = 1'b0;
     end
 
-    // and we can multiplex the data bus towards the CPU
     if (cpu_read_char_ram_v) begin
       d_from_char_o = d_from_char_ram_s;
     end
@@ -504,9 +398,6 @@ module ladybug_char (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // The character RAM
-  // ---------------------------------------------------------------------------
   ladybug_char_ram char_ram_b (
     .clk1_i    (clk_20mhz_i),
     .clk_en1_i (clk_en_4mhz_i),
@@ -526,9 +417,6 @@ module ladybug_char (
     .pr_i      (pr_i[0]),
     .pr_o      (pr_o[0])
   );
-  // ---------------------------------------------------------------------------
-  // The color RAM
-  // ---------------------------------------------------------------------------
   ladybug_char_col_ram col_ram_b (
     .clk_i    (clk_20mhz_i),
     .clk_en_i (clk_en_4mhz_i),
@@ -541,13 +429,6 @@ module ladybug_char (
     .pr_o     (pr_o[1])
   );
 
-  // ---------------------------------------------------------------------------
-  // Process ram_d_seq
-  //
-  // Purpose:
-  //   Implements three latch banks that save the output of the character
-  //   and color RAMs.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : ram_d_seq
     logic complex_rising_edge_v;
 
@@ -557,19 +438,10 @@ module ladybug_char (
       d_col_ram_q  <= '0;
     end
     else begin
-      // latch data from the character RAM to form input for h_flip -----------
       if (hx_ctrl_n_rise_s == 1'b1) begin
         s_q <= d_from_char_ram_s;
       end
 
-      // latch data from the character RAM for ROM address generation ---------
-      // there are three sources for a rising edge:
-      //   1) falling edge of h_ctrl_n_s(1)
-      //      => equivalen to rising edge of h_ctrl_s(1)
-      //   2) rising edge of hx_ctrl_n_q
-      //   3) rising edge of b1_ff_n
-      // For each source, the two have to be in a defined state to let
-      // the edge propage to the latches.
       complex_rising_edge_v = ((h_ctrl_rise_s[1] &
                                 (b1_ff_q | hx_ctrl_q))              |
                                (hx_ctrl_n_rise_s &
@@ -583,12 +455,6 @@ module ladybug_char (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process latch_rom_d
-  //
-  // Purpose:
-  //   Latch the output of the character ROM.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : latch_rom_d
     if (!por_n_i) begin
       d_char_rom_q  <= '0;
@@ -607,12 +473,6 @@ module ladybug_char (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process hbl_seq
-  //
-  // Purpose:
-  //   Implements the flip-flop that latches HBL.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : hbl_seq
     if (!por_n_i) begin
       hbl_q <= 1'b0;
@@ -626,14 +486,12 @@ module ladybug_char (
       if (ha_t_rise_i == 1'b1) begin
         hbl_q <= hbl_i;
         if (hbl_q == 1'b1 && hbl_i == 1'b0) begin
-          // last assignment wins (as in VHDL): overrides hcnt <= hcnt + 1
           hcnt <= 0;
         end
       end
     end
   end
 
-  // NOTE(translation): unnamed process in VHDL (hblank/vblank generation, no reset)
   always_ff @(posedge clk_20mhz_i) begin : blank_seq
     if (clk_en_5mhz_i == 1'b1) begin
       hbl_d <= hbl_q;
@@ -651,12 +509,6 @@ module ladybug_char (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process crg_mux
-  //
-  // Purpose:
-  //   Multiplexes the latched character ROM data to CRG1 and CRG2.
-  //
   always_comb begin : crg_mux
     logic       blank_v;
     logic [2:0] idx_v;
@@ -676,9 +528,6 @@ module ladybug_char (
     blank_o = blank_v;
   end
 
-  // ---------------------------------------------------------------------------
-  // Output Mapping
-  // ---------------------------------------------------------------------------
   assign wait_n_o = ~wait_q;
   assign crg_o[5] = crg5_q;
   assign crg_o[4] = crg4_q;

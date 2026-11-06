@@ -54,13 +54,8 @@ module ladybug_rgb (
   output logic [1:0] rgb_r_o,
   output logic [1:0] rgb_g_o,
   output logic [1:0] rgb_b_o,
-  output logic [8:1] rgb_n_o,     // Universal: latched inverted PROM byte (8203 board wires it differently)
-  output logic       bg_o,        // Universal: pixel is background (no char pen, no sprite)
-  // ROMPOOL-2026-10-27: the K1 PROM is a dispatcher ROM block (universal_dispatcher.sv); originals:
-  // // PROM download interface (replaces dn_* ports)
-  // input  logic       prom_wr_i,
-  // input  logic [4:0] prom_a_i,
-  // input  logic [7:0] prom_d_i
+  output logic [8:1] rgb_n_o,
+  output logic       bg_o,
   output logic [4:0] prom_a_o,
   input  logic [7:0] prom_d_i
 );
@@ -70,12 +65,6 @@ module ladybug_rgb (
   logic [8:1] rgb_n_q;
   logic       bg_d, bg_q;
 
-  // ---------------------------------------------------------------------------
-  // Process addr
-  //
-  // Purpose:
-  //   Generates the PROM address.
-  //
   always_comb begin : addr
     logic sig_and_v;
 
@@ -91,33 +80,9 @@ module ladybug_rgb (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // The RGB Conversion PROM
-  // ---------------------------------------------------------------------------
-  // ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block (read port exported)
-  //   logic [7:0] rgb_prom_qa_unused_s;
-  //   dpram_dc #(.widthad_a(5), .width_a(8)) rgb_prom_b (
-  //     .clock_a   (clk_20mhz_i),
-  //     .address_a (prom_a_i),
-  //     .data_a    (prom_d_i),
-  //     .wren_a    (prom_wr_i),
-  //     .q_a       (rgb_prom_qa_unused_s),
-  //
-  //     .clock_b   (clk_20mhz_i),
-  //     .address_b (a_s),
-  //     .data_b    (8'd0),
-  //     .wren_b    (1'b0),
-  //     .q_b       (rgb_s)
-  //   );
   assign prom_a_o = a_s;
   assign rgb_s    = prom_d_i;
 
-  // ---------------------------------------------------------------------------
-  // Process rgb_latch
-  //
-  // Purpose:
-  //   Implements the output latch for the RGB values.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : rgb_latch
     if (!por_n_i) begin
       rgb_n_q <= '1;
@@ -129,7 +94,6 @@ module ladybug_rgb (
     end
   end
 
-  // Universal: background flag, delayed like the PROM read and latched with the colour
   always_ff @(posedge clk_20mhz_i) begin : bg_latch
     bg_d <= (&sig_i) & ~(crg_i[1] | crg_i[2]);
     if (clk_en_5mhz_i == 1'b1)
@@ -138,9 +102,6 @@ module ladybug_rgb (
   assign bg_o    = bg_q;
   assign rgb_n_o = rgb_n_q;
 
-  // ---------------------------------------------------------------------------
-  // Output Mapping
-  // ---------------------------------------------------------------------------
   assign rgb_r_o = {rgb_n_q[5+1], rgb_n_q[0+1]};
   assign rgb_g_o = {rgb_n_q[6+1], rgb_n_q[2+1]};
   assign rgb_b_o = {rgb_n_q[7+1], rgb_n_q[4+1]};

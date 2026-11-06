@@ -25,7 +25,7 @@
     <joystick>4-way</joystick>
     <special_controls></special_controls>
     <num_buttons>1</num_buttons>
-    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,-" default="A,Select,Start,R,L"/>
 
     <switches default="DF,FF">
         <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
@@ -38,7 +38,7 @@
         <dip name="Coin B" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,2C/2C,1C/1C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,9,15,14,13,12,11,0"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="sraider.zip">
         <part crc="0f389774" name="sraid3.r4"/>
         <part crc="38a48db0" name="sraid2.n4"/>
@@ -59,7 +59,7 @@
         <part crc="2380b90f" name="sraid-s9.f6"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             01 11 00 00 FF FF FF DF FF FF 80 80 80 00 01 80
@@ -69,18 +69,18 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 1D EF 80 00 FF 00 02 00 02 00 01 11 11 00 00
             00 00 60 10 00 9F 00 21
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="159"></nvram>
 
-    <!-- Index 5: MAME artwork, layout table (from default.lay) + PNGs from the artwork zip, as-is -->
-    <!-- OSD Artwork: View 1 = Upright Artwork Conv -->
+    <!-- Index 5: Artwork -->
     <rom index="5" md5="none" zip="/mame-artwork/sraider.zip">
         <part>
             41 57 01 00 01 00 F0 00 C0 00 01 00 00 00 00 00 B4 02 8E 02 9A 00 3E 00 80 01 00 02 00 62 01 00

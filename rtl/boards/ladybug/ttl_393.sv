@@ -61,15 +61,6 @@ module ttl_393 (
   logic [2:1][3:0] cnt_q;
   logic [2:1][4:0] cnt_s;
 
-  // ---------------------------------------------------------------------------
-  // Process seq
-  //
-  // Purpose:
-  //   Implements the flip-flops.
-  //
-  //   Note: We assume that the sequential elements power-up to the same state
-  //         as forced into by cl_i.
-  //
   always_ff @(posedge ck_i or negedge por_n_i) begin : seq
     if (!por_n_i) begin
       cnt_q[1] <= '0;
@@ -81,32 +72,21 @@ module ttl_393 (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process adder
-  //
-  // Purpose:
-  //   Implements the adder.
-  //
   always_comb begin : adder
     for (int idx = 2; idx >= 1; idx--) begin
       cnt_s[idx] = {1'b0, cnt_q[idx]};
 
       if (cl_i[idx] == 1'b0) begin
         if (ck_en_i[idx] == 1'b1) begin
-          // increment upon enable
           cnt_s[idx] = {1'b0, cnt_q[idx]} + 5'd1;
         end
       end
       else begin
-        // pseudo-asynchronous clear
         cnt_s[idx] = '0;
       end
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Output Mapping
-  // ---------------------------------------------------------------------------
   assign qa_o[1] = cnt_q[1][0];
   assign qb_o[1] = cnt_q[1][1];
   assign qc_o[1] = cnt_q[1][2];

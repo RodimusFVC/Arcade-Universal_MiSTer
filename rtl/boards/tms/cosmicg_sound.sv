@@ -1,33 +1,15 @@
-//============================================================================
-//
-//  Cosmic Guerilla sound (behavioural)
 //  Copyright (C) 2026 Rodimus
-//
-//  No schematic: voices fitted to the board recordings in MAME's cosmicg samples (Useful Information/samples),
-//  triggered as MAME cosmicg_output_w does (CRU bits 1-15, every write; bit 12 = sound enable).
-//    march (2, select 3-5): square burst 85 ms, 108 / 104 / 101 / 98 / 95 / 92 / 89 / 85 Hz
-//    attack (6, held):      random bit stream clocked at 2414 Hz
-//    chance (8, held):      square, 126 ms pitch loop 469 -> 394 -> 479 Hz (channel shared with got bonus)
-//    got bonus (7):         2414 Hz-clocked noise, RC filtered, 0.55 s then decay
-//    got ship (9):          1370 Hz-clocked noise, RC filtered (0.33 ms), decay tau 1.4 s, 3.8 s
-//    gun / got monster (13, select 14): 2785 Hz square 0.197 s / 2753 -> 2629 Hz 0.243 s
-//    coin extend (15):      2414 Hz square 0.497 s
-//    bit 1: direct 1-bit DAC
-//  No multipliers: envelopes scale the noise source before its filter.
-//
-//============================================================================
 
 module cosmicg_sound
 (
-    input  logic               clk,            // 19.656 MHz
+    input  logic               clk,
     input  logic               reset,
-    input  logic               we,             // CRU write strobe, bit address < 16
+    input  logic               we,
     input  logic         [3:0] wa,
     input  logic               wd,
     output logic signed [15:0] audio
 );
 
-// ------------------------------------------------------------------ ticks: 1.2285 MHz oscillator tick, 47.94 kHz sample
 logic [3:0] t16 = 4'd0;
 always_ff @(posedge clk) t16 <= t16 + 4'd1;
 wire tk = (t16 == 4'd0);
@@ -35,13 +17,12 @@ logic [8:0] t410 = 9'd0;
 wire ts = (t410 == 9'd409);
 always_ff @(posedge clk) t410 <= ts ? 9'd0 : t410 + 9'd1;
 
-// ------------------------------------------------------------------ trigger logic (MAME)
 logic       en = 1'b0, dac = 1'b0, gds = 1'b0;
 logic [2:0] msel = 3'd0;
-logic       m_go, g_go, d_go, e_go, b_go;                          // one-shot starts
+logic       m_go, g_go, d_go, e_go, b_go;
 logic       att_on = 1'b0;
-logic [1:0] ch4 = 2'd0;                                             // 0 idle, 1 chance (loop), 2 got bonus
-logic       b_end;                                                  // got bonus finished
+logic [1:0] ch4 = 2'd0;
+logic       b_end;
 logic       gun_sel;
 always_ff @(posedge clk) begin
     {m_go, g_go, d_go, e_go, b_go} <= 5'd0;
@@ -53,7 +34,7 @@ always_ff @(posedge clk) begin
         if (we) begin
             if (wa == 4'd12) begin
                 en <= wd;
-                if (!wd) begin att_on <= 1'b0; ch4 <= 2'd0; end      // samples->stop(0..8)
+                if (!wd) begin att_on <= 1'b0; ch4 <= 2'd0; end
             end
             if (en || (wa == 4'd12 && wd)) case (wa)
                 4'd1:  dac <= wd;
@@ -75,14 +56,13 @@ always_ff @(posedge clk) begin
 end
 wire stop_all = reset || (we && wa == 4'd12 && !wd);
 
-// ------------------------------------------------------------------ oscillators (24-bit phase, inc = f * 2^24 / 1.2285 MHz)
 function automatic [11:0] march_inc(input [2:0] s);
     case (s)
         3'd0: march_inc = 12'd1475; 3'd1: march_inc = 12'd1420; 3'd2: march_inc = 12'd1379; 3'd3: march_inc = 12'd1338;
         3'd4: march_inc = 12'd1297; 3'd5: march_inc = 12'd1256; 3'd6: march_inc = 12'd1215; 3'd7: march_inc = 12'd1161;
     endcase
 endfunction
-function automatic [7:0] march_low(input [2:0] s);                 // low part of the period (duty 0.58 .. 0.47)
+function automatic [7:0] march_low(input [2:0] s);
     case (s)
         3'd0: march_low = 8'd108; 3'd1: march_low = 8'd113; 3'd2: march_low = 8'd115; 3'd3: march_low = 8'd120;
         3'd4: march_low = 8'd123; 3'd5: march_low = 8'd128; 3'd6: march_low = 8'd133; 3'd7: march_low = 8'd136;
@@ -96,10 +76,9 @@ function automatic [12:0] chance_inc(input [3:0] s);
     endcase
 endfunction
 
-// march
 logic [23:0] m_ph;
 logic [2:0]  m_sel;
-logic [12:0] m_t = 13'd0;                                           // sample ticks left
+logic [12:0] m_t = 13'd0;
 always_ff @(posedge clk) begin
     if (stop_all) m_t <= 13'd0;
     else if (m_go) begin m_t <= 13'd4075; m_ph <= 24'd0; m_sel <= msel; end
@@ -111,7 +90,6 @@ end
 wire m_on  = m_t != 13'd0;
 wire m_out = m_ph[23:16] >= march_low(m_sel);
 
-// 2414 Hz clock: coin extend tone, attack / got bonus noise clock
 logic [23:0] c_ph = 24'd0;
 logic        c_wrap;
 always_ff @(posedge clk) begin
@@ -128,7 +106,6 @@ always_ff @(posedge clk) begin
     else if (ts && e_t != 15'd0) e_t <= e_t - 15'd1;
 end
 
-// chance
 logic [23:0] h_ph = 24'd0;
 logic  [3:0] h_step = 4'd0;
 logic  [8:0] h_t = 9'd0;
@@ -137,13 +114,12 @@ always_ff @(posedge clk) begin
     else begin
         if (tk) h_ph <= h_ph + {11'd0, chance_inc(h_step)};
         if (ts) begin
-            h_t <= (h_t == 9'd503) ? 9'd0 : h_t + 9'd1;             // 10.5 ms per step, 12 steps
+            h_t <= (h_t == 9'd503) ? 9'd0 : h_t + 9'd1;
             if (h_t == 9'd503) h_step <= (h_step == 4'd11) ? 4'd0 : h_step + 4'd1;
         end
     end
 end
 
-// gun / got monster
 logic [23:0] g_ph;
 logic [15:0] g_inc;
 logic [13:0] g_t = 14'd0;
@@ -158,13 +134,12 @@ always_ff @(posedge clk) begin
         if (ts && g_t != 14'd0) begin
             g_t <= g_t - 14'd1;
             g_div <= (g_div == 3'd5) ? 3'd0 : g_div + 3'd1;
-            if (!gun_sel && g_div == 3'd5 && g_inc > 16'd35903) g_inc <= g_inc - 16'd1;     // 2753 -> 2629 Hz
+            if (!gun_sel && g_div == 3'd5 && g_inc > 16'd35903) g_inc <= g_inc - 16'd1;
         end
     end
 end
-wire g_audible = gun_sel ? 1'b1 : (g_t > 14'd1104);                  // got monster: tone ends at 0.22 s
+wire g_audible = gun_sel ? 1'b1 : (g_t > 14'd1104);
 
-// got ship: 1370 Hz-clocked noise
 logic [23:0] d_ph = 24'd0;
 logic        d_wrap;
 logic [16:0] lf_d = 17'h0B5A3;
@@ -182,11 +157,10 @@ always_ff @(posedge clk) begin
     else if (ts && d_t != 18'd0) begin
         d_t <= d_t - 18'd1;
         d_div <= d_div + 6'd1;
-        if (d_div == 6'd0) d_env <= d_env - (d_env >> 10);           // tau 1.37 s
+        if (d_div == 6'd0) d_env <= d_env - (d_env >> 10);
     end
 end
 
-// got bonus: 2414 Hz-clocked noise, hold 0.55 s then decay (tau 85 ms), 0.79 s
 logic [15:0] b_t = 16'd0;
 logic [13:0] b_env = 14'd0;
 logic  [5:0] b_div = 6'd0;
@@ -202,7 +176,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ mix at the sample tick
 localparam signed [17:0] A = 18'sd6000;
 wire signed [17:0] v_march = !m_on ? 18'sd0 : m_out ? A : -A;
 wire signed [17:0] v_att   = !att_on ? 18'sd0 : lf_a[0] ? A : -A;
@@ -216,9 +189,9 @@ wire signed [17:0] b_src   = (b_t == 16'd0) ? 18'sd0 : lf_a[0] ? $signed({4'd0, 
 function automatic signed [20:0] sx(input signed [17:0] v);
     sx = {{3{v[17]}}, v};
 endfunction
-logic signed [17:0] d_lp = 18'sd0, b_lp = 18'sd0;                   // RC low-pass: y += (x - y) >> k
+logic signed [17:0] d_lp = 18'sd0, b_lp = 18'sd0;
 logic signed [20:0] mix;
-logic signed [20:0] hp_lp = 21'sd0;                                 // output coupling: tau 43 ms
+logic signed [20:0] hp_lp = 21'sd0;
 wire  signed [17:0] b_clip = (b_lp > 18'sd7000) ? 18'sd7000 : (b_lp < -18'sd7000) ? -18'sd7000 : b_lp;
 always_ff @(posedge clk) begin
     if (ts) begin

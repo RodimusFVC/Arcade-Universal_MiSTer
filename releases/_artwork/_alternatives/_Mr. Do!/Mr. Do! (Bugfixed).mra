@@ -25,7 +25,7 @@
     <joystick>4-way</joystick>
     <special_controls></special_controls>
     <num_buttons>1</num_buttons>
-    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Rack Test" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,Rack Test" default="A,Select,Start,R,L"/>
 
     <switches default="DF,FF">
         <dip name="Difficulty" bits="0,1" ids="Easy,Medium,Hard,Hardest" values="3,2,1,0"/>
@@ -38,7 +38,7 @@
         <dip name="Coin A" bits="12,15" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,Free Play" values="6,8,10,7,15,9,14,13,12,11,0"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="mrdofix.zip|mrdo.zip">
         <part crc="3dcd9359" name="d1"/>
         <part crc="710058d8" name="d2"/>
@@ -57,7 +57,7 @@
         <part crc="b1f68b04" name="k5-06.bin"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             04 11 00 00 FF FF FF DF FF FF 80 80 80 00 01 80
@@ -67,18 +67,18 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 18 F2 40 00 FF 00 02 00 02 00 01 11 11 00 00
             00 00 E0 17 00 64 01 00
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="100"></nvram>
 
-    <!-- Index 5: MAME artwork, layout table (from default.lay) + PNGs from the artwork zip, as-is -->
-    <!-- OSD Artwork: View 1 = Upright Artwork, View 2 = Upright Artwork Gleeb, View 3 = Upright Artwork  Taito Conv, View 4 = Upright Artwork Conv, View 5 = Upright Artwork Cropped Gleeb -->
+    <!-- Index 5: Artwork -->
     <rom index="5" md5="none" zip="/mame-artwork/mrdo.zip">
         <part>
             41 57 05 00 06 00 F0 00 C0 00 01 00 00 00 00 00 B4 02 4E 03 9A 00 FE 00 80 01 00 02 00 63 02 00

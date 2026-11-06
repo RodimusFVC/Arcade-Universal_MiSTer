@@ -46,7 +46,6 @@
 // SystemVerilog translation 2026 (Rodimus) of the MiSTer port by Sorgelig
 
 module ladybug_video_unit (
-  // Clock and Reset Interface ------------------------------------------------
   input  logic        clk_20mhz_i,
   input  logic        por_n_i,
   input  logic        res_n_i,
@@ -55,7 +54,6 @@ module ladybug_video_unit (
   input  logic        clk_en_5mhz_i,
   input  logic        clk_en_5mhz_n_i,
   input  logic        clk_en_4mhz_i,
-  // CPU Interface ------------------------------------------------------------
   input  logic        cs7_n_i,
   input  logic        cs10_n_i,
   input  logic        cs13_n_i,
@@ -68,33 +66,23 @@ module ladybug_video_unit (
   output logic        vc_o,
   output logic        vbl_tick_n_o,
   output logic        vbl_buf_o,
-  // RGB Video Interface ------------------------------------------------------
   output logic [1:0]  rgb_r_o,
   output logic [1:0]  rgb_g_o,
   output logic [1:0]  rgb_b_o,
-  output logic [8:1]  rgb_n_o,        // Universal: raw latched PROM byte (inverted)
-  output logic        bg_o,           // Universal: background pixel
-  input  logic        flip_ext_en_i,  // Universal: flip source override (8203 board)
+  output logic [8:1]  rgb_n_o,
+  output logic        bg_o,
+  input  logic        flip_ext_en_i,
   input  logic        flip_ext_i,
   output logic        hsync_n_o,
   output logic        vsync_n_o,
   output logic        comp_sync_n_o,
   output logic        vblank_o,
   output logic        hblank_o,
-  // Character ROM Interface --------------------------------------------------
   output logic [11:0] rom_char_a_o,
   input  logic [15:0] rom_char_d_i,
-  // Sprite ROM Interface -----------------------------------------------------
   output logic [11:0] rom_sprite_a_o,
   input  logic [15:0] rom_sprite_d_i,
 
-  // PROM download interface (replaces dn_* ports) ----------------------------
-  // ROMPOOL-2026-10-27: PROMs are dispatcher ROM blocks (read ports); originals:
-  // input  logic [4:0]  prom_a_i,
-  // input  logic [7:0]  prom_d_i,
-  // input  logic        prom_k1_wr_i,
-  // input  logic        prom_f4_wr_i,
-  // input  logic        prom_c4_wr_i,
   output logic [4:0]  prom_k1_a_o,
   input  logic [7:0]  prom_k1_d_i,
   output logic [4:0]  prom_f4_a_o,
@@ -109,7 +97,6 @@ module ladybug_video_unit (
   input  logic [7:0]  hs_data_in,
   input  logic        hs_write,
 
-  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
   output ram_pool_pkg::pram_i_t [6:0] pr_i,
   input  ram_pool_pkg::pram_o_t [6:0] pr_o
 );
@@ -136,9 +123,6 @@ module ladybug_video_unit (
 
   assign comp_sync_n_o = comp_sync_n & vbl_n_s;
   assign vbl_buf_o     = ~vbl_n_s;
-  // ---------------------------------------------------------------------------
-  // Horizontal and Vertical Timing Generator
-  // ---------------------------------------------------------------------------
   ladybug_video_timing timing_b (
     .clk_20mhz_i   (clk_20mhz_i),
     .por_n_i       (por_n_i),
@@ -162,9 +146,6 @@ module ladybug_video_unit (
   );
   assign vc_o = v_s[2];
 
-  // ---------------------------------------------------------------------------
-  // Character Module
-  // ---------------------------------------------------------------------------
   ladybug_char char_b (
     .clk_20mhz_i   (clk_20mhz_i),
     .por_n_i       (por_n_i),
@@ -203,9 +184,6 @@ module ladybug_video_unit (
     .pr_o          (pr_o[1:0])
   );
 
-  // ---------------------------------------------------------------------------
-  // Sprite Module
-  // ---------------------------------------------------------------------------
   ladybug_sprite sprite_b (
     .clk_20mhz_i      (clk_20mhz_i),
     .por_n_i          (por_n_i),
@@ -231,11 +209,6 @@ module ladybug_video_unit (
     .sig_o            (sig_s),
     .rom_sprite_a_o   (rom_sprite_a_o),
     .rom_sprite_d_i   (rom_sprite_d_i),
-    // ROMPOOL-2026-10-27: originals
-    // .prom_f4_wr_i     (prom_f4_wr_i),
-    // .prom_c4_wr_i     (prom_c4_wr_i),
-    // .prom_a_i         (prom_a_i),
-    // .prom_d_i         (prom_d_i),
     .prom_f4_a_o      (prom_f4_a_o),
     .prom_f4_d_i      (prom_f4_d_i),
     .prom_c4_a_o      (prom_c4_a_o),
@@ -244,9 +217,6 @@ module ladybug_video_unit (
     .pr_o             (pr_o[6:2])
   );
 
-  // ---------------------------------------------------------------------------
-  // RGB Generator
-  // ---------------------------------------------------------------------------
   ladybug_rgb rgb_b (
     .clk_20mhz_i   (clk_20mhz_i),
     .por_n_i       (por_n_i),
@@ -258,17 +228,10 @@ module ladybug_video_unit (
     .rgb_b_o       (rgb_b_o),
     .rgb_n_o       (rgb_n_o),
     .bg_o          (bg_o),
-    // ROMPOOL-2026-10-27: originals
-    // .prom_wr_i     (prom_k1_wr_i),
-    // .prom_a_i      (prom_a_i),
-    // .prom_d_i      (prom_d_i)
     .prom_a_o      (prom_k1_a_o),
     .prom_d_i      (prom_k1_d_i)
   );
 
-  // ---------------------------------------------------------------------------
-  // Bus Multiplexer
-  // ---------------------------------------------------------------------------
   assign d_from_video_o = (cs13_n_i == 1'b0) ? d_from_char_s : '1;
 
 endmodule

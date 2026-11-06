@@ -25,7 +25,7 @@
     <joystick>2-way</joystick>
     <special_controls></special_controls>
     <num_buttons>1</num_buttons>
-    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,-" default="A,Select,Start,R,L"/>
 
     <switches default="7F,C9,00">
         <dip name="Bonus Game" bits="6,7" ids="5000,10000,15000,None" values="1,2,3,0"/>
@@ -36,7 +36,7 @@
         <dip name="Coin B" bits="20,23" ids="4C/1C,3C/1C,4C/2C,2C/1C,3C/2C,4C/3C,4C/4C,3C/3C,2C/2C,1C/1C,3C/4C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="12,8,13,5,9,14,15,10,6,0,11,7,1,2,3,4"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="magspot2.zip">
         <part crc="c0085ade" name="ms.e3"/>
         <part crc="d534a68b" name="ms.e4"/>
@@ -54,7 +54,7 @@
         <part crc="36e2aa2a" name="ms.d9"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             0F 14 00 00 7F FF C9 FE 00 FC 00 80 01 80 02 80
@@ -64,7 +64,7 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 28 EA F8 00 FF 00 02 00 02 00 01 11 11 00 00
@@ -72,11 +72,11 @@
             00 00 60 09 00 01 00 00
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="3"></nvram>
 
-    <!-- Index 5: MAME artwork, layout table (from default.lay) + PNGs from the artwork zip, as-is -->
-    <!-- OSD Artwork: View 1 = Upright Artwork -->
+    <!-- Index 5: Artwork -->
     <rom index="5" md5="none" zip="/mame-artwork/magspot2.zip">
         <part>
             41 57 01 00 01 00 00 01 C0 00 01 00 00 00 00 00 DC 02 C0 02 AC 00 54 00 80 01 00 02 00 5D 01 00

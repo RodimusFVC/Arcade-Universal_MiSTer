@@ -1,44 +1,22 @@
-//============================================================================
-//
-//  Universal Cosmic boards (Space Panic, Cosmic Alien, Magical Spot, Devil Zone, No Man's Land)
 //  Copyright (C) 2026 Rodimus
-//
-//  From MAME cosmic.cpp / cosmic_v.cpp (Nicola Salmoria, Lee Taylor).
-//
-//  kind: 0 panic, 1 cosmica, 2 magspot, 3 devzone, 4 nomnlnd.
-//  Video 10.816 MHz / 2 = 5.408 MHz (fractional enable from 19.656 MHz), 352 x 262, visible x 0-255, y 32-223.
-//  Z80 10.816 MHz / 6 (panic, cosmica) or / 4 (magspot family).
-//    panic / cosmica: 0000-3FFF ROM, 4000-5FFF video RAM, 6000-601F sprites, 6800-6803 inputs,
-//                     7000-700B sound, 700C-700E colour registers, 700F flip, 7800-7801 sound (panic)
-//    magspot family:  0000-2FFF ROM, 3800-3807 coinage DIP bits, 4000-401F sprites, 4800 DAC (nomnlnd 480A),
-//                     4807 background enable, 480C-480D colour registers, 480F flip, 5000-5003 inputs,
-//                     6000-7FFF video RAM
-//  Interrupts: panic RST 08 at line 0 / RST 10 at line 224 (held to the acknowledge); cosmica coin = NMI;
-//  magspot / devzone coin 1 = IRQ (RST 38), coin 2 = NMI; nomnlnd coin = NMI.
-//  Picture (MAME): background (cosmica stars / devzone grid) < 1bpp bitmap coloured by the user1 map < 8
-//  sprites (16x16 / 32x32, Y flip) < nomnlnd trees and river. Game flip mirrors bitmap, grid and trees, not
-//  the sprites or stars; CRT Flip mirrors the logical raster (visible area symmetric).
-//  Stars: the IC11 map latch is the PROM byte at the last x1 = 32n crossing (closed form, mirror-safe).
-//  Grid: the RLE PROM is decoded once per frame in vblank into a frame RAM (read mirrored when flipped).
-//
-//============================================================================
+// Based on MAME cosmic.cpp, cosmic_v.cpp (Nicola Salmoria, Lee Taylor, BSD-3-Clause)
 
 module cosmic_board
 (
-    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_dispatcher.sv)
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,
     input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
-    input  logic               clk,            // 19.656 MHz
+    input  logic               clk,
     input  logic               reset,
     input  logic               pause,
     input  logic         [2:0] kind,
     input  logic               crt_flip,
 
-    input  logic         [7:0] in0,            // panic / cosmica P1, magspot IN0
-    input  logic         [7:0] in1,            // P2 / IN1
-    input  logic         [7:0] in2,            // panic SYSTEM / IN2
-    input  logic         [7:0] dsw0,           // panic / cosmica DSW / IN3
-    input  logic         [7:0] dsw1,           // magspot DSW (coinage bits)
-    input  logic         [7:0] coin,           // cosmica FAKE / magspot COINS / nomnlnd COIN, active high
+    input  logic         [7:0] in0,
+    input  logic         [7:0] in1,
+    input  logic         [7:0] in2,
+    input  logic         [7:0] dsw0,
+    input  logic         [7:0] dsw1,
+    input  logic         [7:0] coin,
 
     input  logic         [3:0] h_adj,
     input  logic         [3:0] v_adj,
@@ -52,43 +30,38 @@ module cosmic_board
     output logic               video_hblank,
     output logic               video_vblank,
     output logic signed [15:0] audio,
-    output logic        [13:0] snd_trig,       // 7000-700B (bit = data != 0), 7800-7801 (panic)
+    output logic        [13:0] snd_trig,
 
     output logic        [14:0] rom_cpu_a,
     input  logic         [7:0] rom_cpu_d,
-    output logic        [11:0] rom_cmap_a,     // user1 colour map
+    output logic        [11:0] rom_cmap_a,
     input  logic         [7:0] rom_cmap_d,
-    output logic        [11:0] rom_u2_a,       // user2 (stars / grid / tree + river), port 1
+    output logic        [11:0] rom_u2_a,
     input  logic         [7:0] rom_u2_d,
-    output logic        [11:0] rom_u2b_a,      // user2 port 2 (tree + river plane 2)
+    output logic        [11:0] rom_u2b_a,
     input  logic         [7:0] rom_u2b_d,
     output logic        [11:0] rom_spr_a,      // gfx1: [7:0] first half (pen bit 1), [15:8] second half (pen bit 0)
     input  logic        [15:0] rom_spr_d,
 
-    input  logic               prom_wr,        // 0x00-0x1F sprite colour PROM, 0x40-0x5F user3 (grid columns)
+    input  logic               prom_wr,
     input  logic         [6:0] prom_a,
     input  logic         [7:0] prom_d,
 
-    output logic        [12:0] grid_wa,        // devzone grid frame (192 lines x 32 bytes) in a free RAM
+    output logic        [12:0] grid_wa,
     output logic         [7:0] grid_wd,
     output logic               grid_we,
     output logic        [12:0] grid_ra,
     input  logic         [7:0] grid_q,
 
-    // RAMPOOL-2026-10-23: video RAM lives in board RAM pool block 0 (universal_dispatcher.sv; the grid is block 1)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
-    // Originals: output pram_i_t pr0_i / input pram_o_t pr0_o (now pr_i[0], aliased below)
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o,
 
-    // HSCORE-2026-10-23: hiscore access to the video RAM (it is also the work RAM: 4000-5FFF / 6000-7FFF)
     input  logic        [15:0] hs_address,
     output logic         [7:0] hs_data_out,
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write
 );
 
-// RAMPOOL-2026-10-27: pr0 is pool block 0 (the ports used to be pr0_i / pr0_o); block 1 = Devil Zone grid, driven by the dispatcher
 ram_pool_pkg::pram_i_t pr0_i;
 ram_pool_pkg::pram_o_t pr0_o;
 assign pr_i[0] = pr0_i;
@@ -100,7 +73,6 @@ wire k_mag   = (kind >= 3'd2);
 wire k_dev   = (kind == 3'd3);
 wire k_nml   = (kind == 3'd4);
 
-// ------------------------------------------------------------------ clocks
 logic [14:0] pix_acc = 15'd0;
 wire  [15:0] pix_sum = {1'b0, pix_acc} + 16'd5408;
 wire  [15:0] pix_sub = pix_sum - 16'd19656;
@@ -109,7 +81,6 @@ always_ff @(posedge clk) begin
     pix_acc <= (pix_sum >= 16'd19656) ? pix_sub[14:0] : pix_sum[14:0];
 end
 
-// CPU edge stream: 10.816 MHz / 3 (1.8027 MHz CPU) or / 2 (2.704 MHz CPU), over 58968 = 3 * 19656
 wire  [16:0] cpu_inc = k_mag ? 17'd16224 : 17'd10816;
 logic [16:0] cpu_acc = 17'd0;
 logic        cpu_ph = 1'b0, cen_p = 1'b0, cen_n = 1'b0;
@@ -123,7 +94,6 @@ always_ff @(posedge clk) begin
     if (cpu_edge) cpu_ph <= ~cpu_ph;
 end
 
-// ------------------------------------------------------------------ video timing
 logic [8:0] hcnt = 9'd0, vcnt = 9'd0;
 always_ff @(posedge clk) begin
     if (ce_pix) begin
@@ -141,13 +111,12 @@ wire hbl_s0 = hcnt[8];
 wire vbl_s0 = (vcnt < 9'd32) || (vcnt >= 9'd224);
 wire hs_s0  = (hcnt >= hs_start) && (hcnt < hs_start + 9'd32);
 wire vs_s0  = (vcnt >= vs_start) && (vcnt < vs_start + 9'd3);
-wire line0   = ce_pix && hcnt == 9'd351 && vcnt == 9'd261;          // next pixel: line 0
-wire line224 = ce_pix && hcnt == 9'd351 && vcnt == 9'd223;          // next pixel: line 224 (vblank)
+wire line0   = ce_pix && hcnt == 9'd351 && vcnt == 9'd261;
+wire line224 = ce_pix && hcnt == 9'd351 && vcnt == 9'd223;
 
-logic [7:0] frame = 8'd0;                                           // MAME screen frame number (stars, river)
+logic [7:0] frame = 8'd0;
 always_ff @(posedge clk) if (line224) frame <= frame + 8'd1;
 
-// ------------------------------------------------------------------ CPU
 logic        mreq_n, iorq_n, rd_n, wr_n, m1_n, rfsh_n;
 logic [15:0] a;
 logic  [7:0] din, dout;
@@ -155,12 +124,7 @@ logic        int_n = 1'b1;
 logic  [7:0] int_vec = 8'hFF;
 wire         nmi_n = k_panic ? 1'b1 : (k_cosa || k_nml) ? ~coin[0] : ~coin[1];
 
-// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = ~reset;
-// HSCORE-2026-10-23: originals below. The hiscore system borrows the video RAM's CPU port while the CPU is paused;
-// pause_x holds the CPU two clocks longer so its first read after a pause sees its own address again.
-// assign z80pa_0_i.cen_p   = cen_p & ~pause;
-// assign z80pa_0_i.cen_n   = cen_n & ~pause;
 logic [1:0] pause_d = 2'b00;
 always_ff @(posedge clk) pause_d <= {pause_d[0], pause};
 wire pause_x = pause | (|pause_d);
@@ -180,10 +144,9 @@ assign a = z80pa_0_o.a;
 assign dout = z80pa_0_o.dout;
 
 wire mem  = !mreq_n && rfsh_n;
-wire inta = !m1_n && !iorq_n && mreq_n;                            // MREQ high: not an opcode fetch (T80 IORQ_n powers up low)
+wire inta = !m1_n && !iorq_n && mreq_n;
 wire wr   = !wr_n;
 
-// panic / cosmica map
 wire pc_rom  = mem && !k_mag && a[15:14] == 2'b00;
 wire pc_vid  = mem && !k_mag && a[15:13] == 3'b010;
 wire pc_spr  = mem && !k_mag && a[15:5] == 11'b01100000000;
@@ -192,11 +155,10 @@ wire pc_snd  = mem && !k_mag && a[15:11] == 5'b01110 && a[3:0] < 4'd12;
 wire pc_col  = mem && !k_mag && a[15:11] == 5'b01110 && a[3:0] >= 4'd12 && a[3:0] <= (k_panic ? 4'd14 : 4'd13);
 wire pc_flip = mem && !k_mag && a[15:11] == 5'b01110 && a[3:0] == 4'd15;
 wire pc_snd2 = mem && k_panic && a[15:11] == 5'b01111 && !a[1];
-// magspot family map
 wire mg_rom  = mem && k_mag && a < 16'h3000;
 wire mg_dip  = mem && k_mag && a[15:11] == 5'b00111;
 wire mg_spr  = mem && k_mag && a[15:5] == 11'b01000000000;
-wire mg_io   = mem && k_mag && a[15:11] == 5'b01001;              // 4800-480F
+wire mg_io   = mem && k_mag && a[15:11] == 5'b01001;
 wire mg_in   = mem && k_mag && a[15:11] == 5'b01010;
 wire mg_vid  = mem && k_mag && a[15:13] == 3'b011;
 
@@ -205,7 +167,7 @@ wire spr_cs = pc_spr || mg_spr;
 assign rom_cpu_a = {1'b0, a[13:0]};
 
 logic       flip = 1'b0, bg_en = 1'b0, dac = 1'b0;
-logic [15:0] mg_snd = 16'd0;                                        // magspot family: LS259s latch D7 of 4800-480F
+logic [15:0] mg_snd = 16'd0;
 logic [2:0] creg = 3'd0;
 always_ff @(posedge clk) begin
     if (reset) begin
@@ -214,7 +176,7 @@ always_ff @(posedge clk) begin
     else if (wr) begin
         if (pc_snd)  snd_trig[a[3:0]] <= (dout != 8'd0);
         if (pc_snd2) snd_trig[4'd12 + {3'd0, a[0]}] <= (dout != 8'd0);
-        if (pc_snd && a[3:0] == 4'd10) dac <= dout[7];               // panic: bonus
+        if (pc_snd && a[3:0] == 4'd10) dac <= dout[7];
         if (pc_col)  creg[a[1:0]] <= (dout != 8'd0);
         if (pc_flip) flip <= dout[7];
         if (mg_io) begin
@@ -227,70 +189,22 @@ always_ff @(posedge clk) begin
     end
 end
 
-// MULPOOL-2026-10-23: original sound board instances below (each built its own multipliers)
-// // Space Panic: 8015 sound board (rtl/boards/cosmic/panic_sound.sv)
-// logic signed [15:0] panic_snd;
-// panic_sound panic_snd_b
-// (
-//     .clk    (clk),
-//     .reset  (reset | ~k_panic),
-//     .trig   (snd_trig),
-//     .music  (dac),
-//     .coin_n (in2[6] & in2[7]),                                     // coin switches wired to the sound board
-//     .audio  (panic_snd)
-// );
-// // Cosmic Alien: 7910-S sound board (rtl/boards/cosmic/cosmica_sound.sv)
-// logic signed [15:0] cosa_snd;
-// cosmica_sound cosa_snd_b
-// (
-//     .clk    (clk),
-//     .reset  (reset | ~k_cosa),
-//     .trig   (snd_trig[11:0]),
-//     .coin   (coin[0]),
-//     .audio  (cosa_snd)
-// );
-// // Magical Spot / Devil Zone: 8013 / 8022 sound board; No Man's Land: 8003 (rtl/boards/cosmic/magspot_sound.sv, nomnlnd_sound.sv)
-// logic signed [15:0] ms_snd, nml_snd;
-// magspot_sound ms_snd_b
-// (
-//     .clk     (clk),
-//     .reset   (reset | ~(k_mag & ~k_nml)),
-//     .snd     (mg_snd),
-//     .coin_sw (coin[0] | coin[1]),
-//     .audio   (ms_snd)
-// );
-// nomnlnd_sound nml_snd_b
-// (
-//     .clk     (clk),
-//     .reset   (reset | ~k_nml),
-//     .snd     (mg_snd),
-//     .coin_sw (coin[0]),
-//     .audio   (nml_snd)
-// );
-// assign audio = k_panic ? panic_snd : k_cosa ? cosa_snd : k_nml ? nml_snd : ms_snd;
-
-// MULPOOL-2026-10-23: one multiplier pool for the four sound boards. Only one board runs per load (the others are
-// held in reset), so each multiply slot is built once and fed by the active board; every board keeps the same
-// product bits it kept with its own multiplier (bit-exact). Slots: E = engine s32 x s28, X = s32 x s32,
-// W = s34 x s17 (first-level mix weights). Every pooled operand comes from registers / plain logic, never from
-// another pooled product: products feeding a second multiply (sq() after nzv, w() after ngate) stay local, and
-// the x 9000 output scale is shifts, so no path crosses two pooled multipliers (first try did: -27.6 ns).
-// plain signals per board and field (a packed struct made Verilator see X -> W as one circular signal)
+// pooled multiplier operands come from registers / plain logic, never from another pooled product (timing)
 logic        [31:0] pn_ea, ca_ea, ms_ea, nm_ea;
 logic        [27:0] pn_eb, ca_eb, ms_eb, nm_eb;
 logic [3:0]  [31:0] pn_xa, ca_xa, ms_xa, nm_xa, pn_xb, ca_xb, ms_xb, nm_xb;
-logic [9:0]  [33:0] pn_wa /*verilator split_var*/, ca_wa /*verilator split_var*/, ms_wa /*verilator split_var*/,
-                    nm_wa /*verilator split_var*/;   // sim only
+logic [9:0]  [33:0] pn_wa , ca_wa , ms_wa ,
+                    nm_wa ;
 logic [9:0]  [16:0] pn_wb, ca_wb, ms_wb, nm_wb;
 wire         [31:0] sel_ea = k_panic ? pn_ea : k_cosa ? ca_ea : k_nml ? nm_ea : ms_ea;
 wire         [27:0] sel_eb = k_panic ? pn_eb : k_cosa ? ca_eb : k_nml ? nm_eb : ms_eb;
 wire  [3:0]  [31:0] sel_xa = k_panic ? pn_xa : k_cosa ? ca_xa : k_nml ? nm_xa : ms_xa;
 wire  [3:0]  [31:0] sel_xb = k_panic ? pn_xb : k_cosa ? ca_xb : k_nml ? nm_xb : ms_xb;
-wire  [9:0]  [33:0] sel_wa /*verilator split_var*/ = k_panic ? pn_wa : k_cosa ? ca_wa : k_nml ? nm_wa : ms_wa;
+wire  [9:0]  [33:0] sel_wa  = k_panic ? pn_wa : k_cosa ? ca_wa : k_nml ? nm_wa : ms_wa;
 wire  [9:0]  [16:0] sel_wb = k_panic ? pn_wb : k_cosa ? ca_wb : k_nml ? nm_wb : ms_wb;
 logic [59:0]  mp_ep;
 logic [3:0]  [63:0] mp_xp;
-logic [9:0]  [50:0] mp_wp /*verilator split_var*/;
+logic [9:0]  [50:0] mp_wp ;
 assign mp_ep = $signed(sel_ea) * $signed(sel_eb);
 genvar mk;
 generate
@@ -302,7 +216,6 @@ generate
     end
 endgenerate
 
-// Space Panic: 8015 sound board (rtl/boards/cosmic/panic_sound.sv)
 logic signed [15:0] panic_snd;
 panic_sound panic_snd_b
 (
@@ -310,12 +223,11 @@ panic_sound panic_snd_b
     .reset  (reset | ~k_panic),
     .trig   (snd_trig),
     .music  (dac),
-    .coin_n (in2[6] & in2[7]),                                     // coin switches wired to the sound board
+    .coin_n (in2[6] & in2[7]),
     .audio  (panic_snd),
     .mp_ea  (pn_ea), .mp_eb(pn_eb), .mp_ep(mp_ep), .mp_xa(pn_xa), .mp_xb(pn_xb), .mp_xp(mp_xp),
     .mp_wa  (pn_wa), .mp_wb(pn_wb), .mp_wp(mp_wp)
 );
-// Cosmic Alien: 7910-S sound board (rtl/boards/cosmic/cosmica_sound.sv)
 logic signed [15:0] cosa_snd;
 cosmica_sound cosa_snd_b
 (
@@ -327,7 +239,6 @@ cosmica_sound cosa_snd_b
     .mp_ea  (ca_ea), .mp_eb(ca_eb), .mp_ep(mp_ep), .mp_xa(ca_xa), .mp_xb(ca_xb), .mp_xp(mp_xp),
     .mp_wa  (ca_wa), .mp_wb(ca_wb), .mp_wp(mp_wp)
 );
-// Magical Spot / Devil Zone: 8013 / 8022 sound board; No Man's Land: 8003 (rtl/boards/cosmic/magspot_sound.sv, nomnlnd_sound.sv)
 logic signed [15:0] ms_snd, nml_snd;
 magspot_sound ms_snd_b
 (
@@ -351,40 +262,29 @@ nomnlnd_sound nml_snd_b
 );
 assign audio = k_panic ? panic_snd : k_cosa ? cosa_snd : k_nml ? nml_snd : ms_snd;
 
-// interrupts
 logic [1:0] coin_d = 2'b00;
 always_ff @(posedge clk) begin
     coin_d <= coin[1:0];
     if (reset)                                    begin int_n <= 1'b1; int_vec <= 8'hFF; end
-    else if (inta)                                int_n <= 1'b1;                       // HOLD_LINE: cleared on acknowledge
-    else if (k_panic && line0)                    begin int_n <= 1'b0; int_vec <= 8'hCF; end   // RST 08
-    else if (k_panic && line224)                  begin int_n <= 1'b0; int_vec <= 8'hD7; end   // RST 10
+    else if (inta)                                int_n <= 1'b1;
+    else if (k_panic && line0)                    begin int_n <= 1'b0; int_vec <= 8'hCF; end
+    else if (k_panic && line224)                  begin int_n <= 1'b0; int_vec <= 8'hD7; end
     else if ((kind == 3'd2 || k_dev) && coin[0] && !coin_d[0]) begin int_n <= 1'b0; int_vec <= 8'hFF; end
 end
 
-// video RAM (also the work RAM)
 logic  [7:0] vram_q, vram_vq;
 logic [12:0] vram_va;
-// RAMPOOL-2026-10-23: original below; pool block 0
-// dpram_dc #(.widthad_a(13)) video_ram
-// (
-//     .clock_a(clk), .address_a(a[12:0]), .data_a(dout), .wren_a(vid_cs && wr), .q_a(vram_q),
-//     .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
-// );
-// HSCORE-2026-10-23: original below; port A is the hiscore system's while paused
-// assign pr0_i.a_addr = {2'd0, a[12:0]};  assign pr0_i.a_d = dout;  assign pr0_i.a_we = vid_cs && wr;
-assign pr0_i.a_addr = {2'd0, pause ? hs_address[12:0] : a[12:0]};
+assign pr0_i.a_addr = {3'd0, pause ? hs_address[12:0] : a[12:0]};
 assign pr0_i.a_d    = pause ? hs_data_in : dout;
 assign pr0_i.a_we   = pause ? hs_write : vid_cs && wr;
 assign hs_data_out  = pr0_o.a_q;
-assign pr0_i.b_addr = {2'd0, vram_va};  assign pr0_i.b_d = 8'd0;  assign pr0_i.b_we = 1'b0;
+assign pr0_i.b_addr = {3'd0, vram_va};  assign pr0_i.b_d = 8'd0;  assign pr0_i.b_we = 1'b0;
 assign vram_q = pr0_o.a_q;  assign vram_vq = pr0_o.b_q;
 
 logic [7:0] spram[32];
 always_ff @(posedge clk) if (spr_cs && wr) spram[a[4:0]] <= dout;
 
-// inputs
-wire  [7:0] in3 = {dsw0[7:1], k_dev ? ~vbl_s0 : vbl_s0};            // IN3 bit 0: vblank (devzone active low)
+wire  [7:0] in3 = {dsw0[7:1], k_dev ? ~vbl_s0 : vbl_s0};
 function automatic [7:0] nml_remap(input [7:0] ctl, input [7:0] fire);
     if ((fire & 8'hC0) == 8'd0)          nml_remap = 8'hFF;
     else if ((ctl & 8'h82) == 8'd0)      nml_remap = 8'hFE;
@@ -404,7 +304,7 @@ always_comb begin
             2'd0: din = in0;
             2'd1: din = in1;
             2'd2: din = dsw0;
-            2'd3: din = k_panic ? in2 : {2'b00, vcnt[7:2]};       // cosmica: (vpos >> 2) & 0x3F
+            2'd3: din = k_panic ? in2 : {2'b00, vcnt[7:2]};
         endcase
     else if (mg_dip)              din = k_nml ? 8'd1 : {7'd0, ~dsw1[3'd7 - a[2:0]]};
     else if (mg_in)
@@ -416,16 +316,12 @@ always_comb begin
         endcase
 end
 
-// ------------------------------------------------------------------ PROMs
 logic [7:0] prom[32], vprom[32];
 always_ff @(posedge clk) begin
     if (prom_wr && prom_a[6:5] == 2'd0) prom[prom_a[4:0]]  <= prom_d;
     if (prom_wr && prom_a[6:5] == 2'd2) vprom[prom_a[4:0]] <= prom_d;
 end
 
-// ------------------------------------------------------------------ devzone grid (MAME devzone_draw_grid)
-// Per 8-pixel group: if count == 0, count = PROM[addr++]; count++; if count == 0, horz = PROM[addr++];
-// pixels = ~(vert & horz) (after a group horz has shifted in all ones = 0xFF).
 typedef enum logic [2:0] {G_IDLE, G_GROUP, G_AW, G_A, G_BW, G_B, G_OUT} gstate_t;
 gstate_t     gs = G_IDLE;
 logic [10:0] g_addr;
@@ -459,7 +355,6 @@ always_ff @(posedge clk) begin
     endcase
 end
 
-// ------------------------------------------------------------------ sprites: line buffer built a line ahead
 logic [6:0] lb_q[2];
 logic [7:0] lb_q_w[2];
 logic [7:0] lb_wa, lb_ra;
@@ -470,20 +365,10 @@ logic       build_buf = 1'b0;
 wire        disp_buf;
 
 genvar l;
-// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 4 / 5
-// generate
-//     for (l = 0; l < 2; l++) begin : lbuf
-//         dpram_dc #(.widthad_a(8), .width_a(8)) ram
-//         (
-//             .clock_a(clk), .address_a(lb_wa), .data_a({1'b0, lb_wd}), .wren_a(lb_we && build_buf == l),
-//             .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q_w[l])
-//         );
-//     end
-// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        assign pr_i[4+l].a_addr = {7'd0, lb_wa};  assign pr_i[4+l].a_d = {1'b0, lb_wd};  assign pr_i[4+l].a_we = lb_we && build_buf == l;
-        assign pr_i[4+l].b_addr = {7'd0, lb_ra};  assign pr_i[4+l].b_d = 8'd0;           assign pr_i[4+l].b_we = lb_clr && disp_buf == l;
+        assign pr_i[4+l].a_addr = {8'd0, lb_wa};  assign pr_i[4+l].a_d = {1'b0, lb_wd};  assign pr_i[4+l].a_we = lb_we && build_buf == l;
+        assign pr_i[4+l].b_addr = {8'd0, lb_ra};  assign pr_i[4+l].b_d = 8'd0;           assign pr_i[4+l].b_we = lb_clr && disp_buf == l;
         assign lb_q_w[l] = pr_o[4+l].b_q;
     end
 endgenerate
@@ -511,7 +396,7 @@ wire  [7:0] sb0 = spram[{s_n, 2'd0}], sb1 = spram[{s_n, 2'd1}], sb2 = spram[{s_n
 wire        e_big = !sb0[7];
 wire  [8:0] e_r   = {1'b0, sl_line} - {1'b0, sb1};
 wire        e_vis = sb0 != 8'd0 && !e_r[8] && (e_big ? e_r[7:5] == 3'd0 : e_r[7:4] == 4'd0);
-wire  [4:0] e_rr  = !sb0[6] ? ((e_big ? 5'd31 : 5'd15) - e_r[4:0]) : e_r[4:0];      // ~spr0 & 0x40: Y flip
+wire  [4:0] e_rr  = !sb0[6] ? ((e_big ? 5'd31 : 5'd15) - e_r[4:0]) : e_r[4:0];
 wire  [3:0] cmask = k_cosa ? 4'hF : 4'h7;
 
 wire  [2:0] pb    = 3'd7 - s_px;
@@ -520,7 +405,7 @@ wire  [8:0] wx    = s_x + {4'd0, s_col, s_px};
 
 always_ff @(posedge clk) begin
     lb_we <= 1'b0;
-    if (ce_pix && hcnt == 9'd351) begin                   // build line vcnt + 2 during line vcnt + 1
+    if (ce_pix && hcnt == 9'd351) begin
         sl_line   <= crt_flip ? ~tgt[7:0] : tgt[7:0];
         build_buf <= vcnt[0];
         s_n <= 3'd7;
@@ -528,7 +413,7 @@ always_ff @(posedge clk) begin
     end
     else case (ss)
         S_IDLE:  ;
-        S_SPR:   if (e_vis) begin                                         // MAME order: offset 28 first, 0 last (wins)
+        S_SPR:   if (e_vis) begin
                      s_code  <= {k_panic ? sb3[3] : 1'b0, ~sb0[5:0]};
                      s_color <= ~sb3[3:0] & cmask;
                      s_big   <= e_big;
@@ -559,8 +444,6 @@ always_ff @(posedge clk) begin
     endcase
 end
 
-// ------------------------------------------------------------------ picture pipeline
-// S0: logical coordinates (CRT Flip), bitmap source (game flip), ROM / RAM addresses
 wire [7:0] lx = crt_flip ? ~hcnt[7:0] : hcnt[7:0];
 wire [7:0] ly = crt_flip ? ~vcnt[7:0] : vcnt[7:0];
 wire [7:0] bx = flip ? ~lx : lx;
@@ -573,14 +456,12 @@ assign rom_cmap_a = k_panic ? {1'b0, creg[2], creg[0], bx[7:4], by[7:3]} :
 wire [7:0] gy = by - 8'd32;
 assign grid_ra = {gy, bx[7:3]};
 
-// stars (cosmica_draw_starfield): x1 = x +/- frame; map = PROM[(x1 >> 5) | (y >> 1 << 3)] latched at x1 = 32n
 wire [7:0] x1   = flip ? lx - frame : lx + frame;
 wire [7:0] x1e  = flip ? 8'd255 - frame : 8'd255 + frame;
 wire [7:0] lym1 = ly - 8'd1;
 wire       xcur = {3'b000, x1[4:0]} <= lx;
 wire [9:0] st_a = xcur ? {ly[7:1], x1[7:5]} : {lym1[7:1], x1e[7:5]};
 
-// tree + river (nomnlnd_draw_background), in bitmap coordinates
 wire [7:0] water   = frame + by;
 wire       t_rows  = ((!by[5] && by[6] && !by[7]) ^ (by[5] && !by[6] && by[7]));
 wire       t_cols  = !bx[7] && bx[6] && !bx[5];
@@ -589,17 +470,15 @@ wire [9:0] t_offs  = t_rows ? {2'b00, flip, by[4:0], bx[4:3]} : {1'b1, water, bx
 wire [1:0] t_sel   = t_rows ? (t_cols ? 2'd1 : 2'd0) : (w_cols ? 2'd2 : 2'd0);
 
 assign rom_u2_a  = k_nml ? {2'b00, t_offs} : k_cosa ? {2'b00, st_a} : {1'b0, g_rda};
-assign rom_u2b_a = {1'b0, 1'b1, t_offs};                              // plane 2: offs | 0x400
+assign rom_u2b_a = {1'b0, 1'b1, t_offs};
 
-// S1: memory data for the pixel, pipelined geometry
 logic [7:0] s1_vq, s1_cm, s1_u2, s1_u2b, s1_gq;
 logic [2:0] s1_b3;
 logic [7:0] s1_x1, s1_lx;
 logic [1:0] s1_ly, s1_tsel;
 logic       s1_hd, s1_gvis, s1_ln, s1_clr;
-// S2
-logic [3:0] s2_c;                                                     // colour index
-logic [1:0] s2_pal;                                                   // 0 black, 1 panic, 2 plain 3-bit, 3 magspot
+logic [3:0] s2_c;
+logic [1:0] s2_pal;
 logic [3:0] blk_d[2];
 
 assign lb_ra    = s1_lx;
@@ -629,9 +508,9 @@ always_ff @(posedge clk) begin
         s1_gvis <= (by >= 8'd32) && (by < 8'd224);
         s1_ln <= vcnt[0];  s1_clr <= !hcnt[8];
 
-        if (k_nml && bg_en && tree_c != 3'd0)  begin s2_c <= {1'b0, tree_c}; s2_pal <= 2'd3; end   // over everything
+        if (k_nml && bg_en && tree_c != 3'd0)  begin s2_c <= {1'b0, tree_c}; s2_pal <= 2'd3; end
         else if (lbq[6])                       begin s2_c <= sp_c;            s2_pal <= pal_k; end
-        else if (bm_on)                        begin s2_c <= bm_pen;          s2_pal <= pal_k; end   // pen 15 = colour 15 (MAME pen % indirect)
+        else if (bm_on)                        begin s2_c <= bm_pen;          s2_pal <= pal_k; end
         else if (star_on)                      begin s2_c <= {1'b0, star_c};  s2_pal <= 2'd2; end
         else if (grid_on)                      begin s2_c <= 4'd4;            s2_pal <= 2'd3; end
         else                                   begin s2_c <= 4'd0;            s2_pal <= 2'd0; end
@@ -641,7 +520,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ palettes (MAME panic / cosmica / magspot)
 wire [7:0] r_p = s2_c[0] ? 8'hFF : 8'h00;
 wire [7:0] g_p = s2_c[1] ? 8'hFF : 8'h00;
 wire [7:0] b_p = s2_c[2] ? 8'hFF : 8'h00;
@@ -653,7 +531,7 @@ always_ff @(posedge clk) begin
             2'd3:    begin video_r <= (s2_c[3] && !s2_c[0]) ? 8'hAA : r_p; video_g <= g_p; video_b <= b_p; end
             default: begin video_r <= 8'h00; video_g <= 8'h00; video_b <= 8'h00; end
         endcase
-        {video_hblank, video_vblank, video_hs, video_vs} <= blk_d[1];      // same pixel as s2_c
+        {video_hblank, video_vblank, video_hs, video_vs} <= blk_d[1];
     end
 end
 

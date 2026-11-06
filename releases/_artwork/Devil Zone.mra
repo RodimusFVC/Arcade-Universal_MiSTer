@@ -25,7 +25,7 @@
     <joystick>2-way</joystick>
     <special_controls></special_controls>
     <num_buttons>1</num_buttons>
-    <buttons names="Fire,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,-" default="A,Select,Start,R,L"/>
 
     <switches default="DD,00">
         <dip name="Bonus Life" bits="0,1" ids="4000,6000,8000,None" values="1,2,3,0"/>
@@ -36,7 +36,7 @@
         <dip name="Coin B" bits="12,15" ids="4C/1C,3C/1C,4C/2C,2C/1C,3C/2C,4C/3C,4C/4C,3C/3C,2C/2C,1C/1C,3C/4C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C" values="12,8,13,5,9,14,15,10,6,0,11,7,1,2,3,4"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="devzone.zip">
         <part crc="c70faf00" name="dv1.e3"/>
         <part crc="eacfed61" name="dv2.e4"/>
@@ -58,7 +58,7 @@
         <part crc="df974878" name="22.ic1"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             10 14 00 00 FF FF DD FF 00 FC 80 80 00 80 01 80
@@ -68,7 +68,7 @@
         </part>
     </rom>
 
-    <!-- Index 3: hiscore config (MAME hiscore.dat), index 4: saved scores -->
+    <!-- Index 3: Hiscore -->
     <rom index="3" md5="none">
         <part>
             00 28 EA F8 00 FF 00 02 00 02 00 01 11 11 00 00
@@ -76,11 +76,11 @@
             00 00 60 07 00 03 00 00
         </part>
     </rom>
+    <!-- Index 4: NVRAM -->
     <rom index="4"></rom>
     <nvram index="4" size="94"></nvram>
 
-    <!-- Index 5: MAME artwork, layout table (from default.lay) + PNGs from the artwork zip, as-is -->
-    <!-- OSD Artwork: View 1 = Upright Artwork -->
+    <!-- Index 5: Artwork -->
     <rom index="5" md5="none" zip="/mame-artwork/devzone.zip">
         <part>
             41 57 01 00 01 00 00 01 C0 00 01 00 00 00 00 00 DC 02 C0 02 AC 00 54 00 80 01 00 02 00 5D 01 00

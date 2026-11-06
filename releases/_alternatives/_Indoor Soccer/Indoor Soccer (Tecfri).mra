@@ -25,7 +25,7 @@
     <joystick>8-way</joystick>
     <special_controls>twin stick</special_controls>
     <num_buttons>6</num_buttons>
-    <buttons names="Fire,Button 2,R Right,R Left,Coin,Start 1P,Start 2P,Pause,R Down,R Up,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Fire,Button 2,R Right,R Left,Coin,Start 1P,Start 2P,Pause,R Down,R Up,-" default="R,,A,Y,Select,Start,,L,B,X"/>
 
     <switches default="FF,FF,FF">
         <dip name="Freeze" bits="3" ids="Off,On" values="1,0"/>
@@ -39,7 +39,7 @@
         <dip name="Coin A" bits="20,23" ids="4C/1C,3C/1C,2C/1C,3C/2C,1C/1C,2C/3C,1C/2C,1C/3C,1C/4C,1C/5C,1C/6C,Free Play" values="5,7,9,6,15,8,14,13,12,11,10,0"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="idsoccert.zip|idsoccer.zip">
         <part repeat="0x20000">00</part>
         <part crc="1fa5ad7d" name="1.e10"/>
@@ -62,7 +62,7 @@
         <part crc="3bb65dc7" name="12_sub-1.ic4"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             09 00 00 00 FF FF FF FF FF FF 80 80 00 01 02 80

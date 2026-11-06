@@ -1,43 +1,21 @@
-//============================================================================
-//
-//  Universal Zero Hour / Red Clash board
 //  Copyright (C) 2026 Rodimus
-//
-//  From MAME zerohour.cpp (David Haywood, inkling) and zerohour_stars.cpp (Frank Palazzolo).
-//
-//  Z80 4 MHz, video 9.828 MHz / 2 (= 19.656 / 4), 312 x 262, visible x 8-247, y 32-223.
-//  No periodic interrupt (the game polls vblank on IN1): coin 1 holds IRQ until 7800 is written,
-//  coin 2 pulses NMI.
-//    zerohour_state                            redclash_state
-//    0000-2FFF ROM                             0000-2FFF ROM
-//    3000-37FF RAM                             3000 background, 3800 beeper frequency
-//    3800-3BFF sprite RAM                      6000-67FF RAM, 6800-6BFF sprite RAM
-//    4000-43FF video RAM (00-3F also the bullet registers), 4800-4803 IN0 IN1 DSW1 DSW2,
-//    5000-5007 / 5800-5807 LS259 latches (sound board, stars, flip), 7000 star enable, 7800 IRQ ack
-//  Latch 2: Q0 / Q5 / Q6 star speed, Q1 thrust (Zero Hour) / sprite bank (Red Clash), Q2 sound enable,
-//  Q3 1-bit DAC (Zero Hour), Q4 coin sound, Q7 flip.
-//
-//  Video in MAME screen coordinates; CRT Flip mirrors the logical raster (visible area is symmetric):
-//  stars (bottom) < Red Clash white background < bullets < sprites < chars.
-//  Bullets and sprites are drawn into a line buffer one line ahead, in MAME drawing order (overwrite).
-//
-//============================================================================
+// Based on MAME zerohour.cpp, zerohour_stars.cpp (David Haywood, Frank Palazzolo, BSD-3-Clause)
 
 module zerohour_board
 (
-    output chip_pool_pkg::z80pa_i_t z80pa_0_i,     // shared Z80 (rtl/universal_dispatcher.sv)
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,
     input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
-    input  logic               clk,            // 19.656 MHz
+    input  logic               clk,
     input  logic               reset,
     input  logic               pause,
-    input  logic               redclash,       // 0: zerohour_state, 1: redclash_state
-    input  logic               crt_flip,       // mirror the whole picture (OSD CRT Flip)
+    input  logic               redclash,
+    input  logic               crt_flip,
 
     input  logic         [7:0] in0,
     input  logic         [7:0] in1,
     input  logic         [7:0] dsw1,
     input  logic         [7:0] dsw2,
-    input  logic         [7:0] coin,           // MAME FAKE port: [0] coin 1 (IRQ), [1] coin 2 (NMI), active high
+    input  logic         [7:0] coin,
 
     input  logic         [3:0] h_adj,
     input  logic         [3:0] v_adj,
@@ -54,39 +32,33 @@ module zerohour_board
 
     output logic        [14:0] rom_cpu_a,
     input  logic         [7:0] rom_cpu_d,
-    output logic        [11:0] rom_chr_a,      // gfx1
+    output logic        [11:0] rom_chr_a,
     input  logic         [7:0] rom_chr_d,
-    output logic        [11:0] rom_spr_a,      // gfx2 as 64-bit rows (8 byte lanes)
+    output logic        [11:0] rom_spr_a,
     input  logic        [63:0] rom_spr_d,
 
-    input  logic               prom_wr,        // MAME proms region 0x00-0x7F
+    input  logic               prom_wr,
     input  logic         [6:0] prom_a,
     input  logic         [7:0] prom_d,
 
-    input  logic        [15:0] hs_address,     // HSCORE-2026-10-23: was [10:0]; 4000-43FF = video RAM
+    input  logic        [15:0] hs_address,
     output logic         [7:0] hs_data_out,
     input  logic         [7:0] hs_data_in,
     input  logic               hs_write,
 
-    // RAMPOOL-2026-10-23: work RAM / video RAM live in board RAM pool blocks 0 / 1 (universal_dispatcher.sv)
-    // RAMPOOL-2026-10-27: 13 board RAM pool blocks (universal_dispatcher.sv): 0-2 big, 3 = 4K, 4-12 = 1K; map in the dispatcher.
-    // Originals: output pram_i_t pr0_i, pr1_i / input pram_o_t pr0_o, pr1_o (now pr_i[0] / pr_i[1], aliased below)
     output ram_pool_pkg::pram_i_t [12:0] pr_i,
     input  ram_pool_pkg::pram_o_t [12:0] pr_o
 );
 
-// RAMPOOL-2026-10-27: pr0 / pr1 are pool blocks 0 / 1 (the ports used to be pr0_i, pr1_i, pr0_o, pr1_o)
 ram_pool_pkg::pram_i_t pr0_i, pr1_i;
 ram_pool_pkg::pram_o_t pr0_o, pr1_o;
 assign pr_i[0] = pr0_i;  assign pr_i[1] = pr1_i;
 assign pr0_o = pr_o[0];  assign pr1_o = pr_o[1];
 
-// ------------------------------------------------------------------ clocks
 logic [1:0] ph = 2'd0;
 always_ff @(posedge clk) ph <= ph + 2'd1;
 assign ce_pix = (ph == 2'd3);
 
-// CPU: 8.000 MHz edge stream from 19.656 MHz, alternating rising / falling = 4.000 MHz
 logic [11:0] frac_q = 12'd0;
 logic        frac_ph = 1'b0, cen_p = 1'b0, cen_n = 1'b0;
 wire  [12:0] frac_sum  = {1'b0, frac_q} + 13'd1000;
@@ -99,7 +71,6 @@ always_ff @(posedge clk) begin
     if (frac_edge) frac_ph <= ~frac_ph;
 end
 
-// ------------------------------------------------------------------ video timing
 logic [8:0] hcnt = 9'd0, vcnt = 9'd0;
 always_ff @(posedge clk) begin
     if (ce_pix) begin
@@ -118,19 +89,13 @@ wire vbl_s0 = (vcnt < 9'd32) || (vcnt >= 9'd224);
 wire hs_s0  = (hcnt >= hs_start) && (hcnt < hs_start + 9'd24);
 wire vs_s0  = (vcnt >= vs_start) && (vcnt < vs_start + 9'd3);
 
-// ------------------------------------------------------------------ CPU
 logic        mreq_n, iorq_n, rd_n, wr_n, m1_n, rfsh_n;
 logic [15:0] a;
 logic  [7:0] din, dout;
 logic        int_n = 1'b1;
 logic  [1:0] coin_d = 2'b00;
 
-// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = ~reset;
-// HSCORE-2026-10-23: originals below. The hiscore system borrows the video RAM's CPU port while the CPU is paused;
-// pause_x holds the CPU two clocks longer so its first read after a pause sees its own address again.
-// assign z80pa_0_i.cen_p   = cen_p & ~pause;
-// assign z80pa_0_i.cen_n   = cen_n & ~pause;
 logic [1:0] pause_d = 2'b00;
 always_ff @(posedge clk) pause_d <= {pause_d[0], pause};
 wire pause_x = pause | (|pause_d);
@@ -154,7 +119,7 @@ wire wr      = !wr_n;
 wire rom_cs  = mem && a < 16'h3000;
 wire ram_cs  = mem && (redclash ? a[15:11] == 5'b01100 : a[15:11] == 5'b00110);
 wire spr_cs  = mem && (redclash ? a[15:10] == 6'b011010 : a[15:10] == 6'b001110);
-wire bgr_cs  = mem && redclash && a[15:11] == 5'b00110;   // 3000 background
+wire bgr_cs  = mem && redclash && a[15:11] == 5'b00110;
 wire vram_cs = mem && a[15:10] == 6'b010000;
 wire in_cs   = mem && a[15:11] == 5'b01001;
 wire l1_cs   = mem && a[15:11] == 5'b01010;
@@ -167,7 +132,7 @@ assign rom_cpu_a = a[14:0];
 always_ff @(posedge clk) begin
     coin_d <= coin[1:0];
     if (reset)                     int_n <= 1'b1;
-    else if (coin[0] && !coin_d[0]) int_n <= 1'b0;   // MAME left_coin_inserted: ASSERT_LINE
+    else if (coin[0] && !coin_d[0]) int_n <= 1'b0;
     else if (ack_cs && wr)         int_n <= 1'b1;
 end
 
@@ -191,52 +156,24 @@ logic [7:0] spr_q[4], spr_vq[4];
 logic [9:0] vram_va;
 logic [7:0] spr_ve;
 
-// RAMPOOL-2026-10-23: original below; pool block 0
-// dpram_dc #(.widthad_a(11)) work_ram
-// (
-//     .clock_a(clk), .address_a(a[10:0]), .data_a(dout), .wren_a(ram_cs && wr), .q_a(ram_q),
-//     .clock_b(clk), .address_b(hs_address), .data_b(hs_data_in), .wren_b(hs_write), .q_b(hs_data_out)
-// );
-assign pr0_i.a_addr = {4'd0, a[10:0]};      assign pr0_i.a_d = dout;        assign pr0_i.a_we = ram_cs && wr;
-// HSCORE-2026-10-23: originals below (port B took every hiscore address; now only the work RAM's)
-// assign pr0_i.b_addr = {4'd0, hs_address};   assign pr0_i.b_d = hs_data_in;  assign pr0_i.b_we = hs_write;
-// assign ram_q = pr0_o.a_q;  assign hs_data_out = pr0_o.b_q;
-wire hs_vid = hs_address[15:10] == 6'b010000;                                       // 4000-43FF
-assign pr0_i.b_addr = {4'd0, hs_address[10:0]};  assign pr0_i.b_d = hs_data_in;  assign pr0_i.b_we = hs_write & ~hs_vid;
+assign pr0_i.a_addr = {5'd0, a[10:0]};      assign pr0_i.a_d = dout;        assign pr0_i.a_we = ram_cs && wr;
+wire hs_vid = hs_address[15:10] == 6'b010000;
+assign pr0_i.b_addr = {5'd0, hs_address[10:0]};  assign pr0_i.b_d = hs_data_in;  assign pr0_i.b_we = hs_write & ~hs_vid;
 assign ram_q = pr0_o.a_q;  assign hs_data_out = hs_vid ? pr1_o.a_q : pr0_o.b_q;
-// RAMPOOL-2026-10-23: original below; pool block 1
-// dpram_dc #(.widthad_a(10)) video_ram
-// (
-//     .clock_a(clk), .address_a(a[9:0]), .data_a(dout), .wren_a(vram_cs && wr), .q_a(vram_q),
-//     .clock_b(clk), .address_b(vram_va), .q_b(vram_vq)
-// );
-// HSCORE-2026-10-23: original below; port A is the hiscore system's while paused
-// assign pr1_i.a_addr = {5'd0, a[9:0]};   assign pr1_i.a_d = dout;  assign pr1_i.a_we = vram_cs && wr;
-assign pr1_i.a_addr = {5'd0, pause ? hs_address[9:0] : a[9:0]};
+assign pr1_i.a_addr = {6'd0, pause ? hs_address[9:0] : a[9:0]};
 assign pr1_i.a_d    = pause ? hs_data_in : dout;
 assign pr1_i.a_we   = pause ? hs_vid & hs_write : vram_cs && wr;
-assign pr1_i.b_addr = {5'd0, vram_va};  assign pr1_i.b_d = 8'd0;  assign pr1_i.b_we = 1'b0;
+assign pr1_i.b_addr = {6'd0, vram_va};  assign pr1_i.b_d = 8'd0;  assign pr1_i.b_we = 1'b0;
 assign vram_q = pr1_o.a_q;  assign vram_vq = pr1_o.b_q;
 genvar l;
-// RAMPOOL-2026-10-27: original lane RAMs below; now pool blocks 4-7
-// generate
-//     for (l = 0; l < 4; l++) begin : spr_lane
-//         dpram_dc #(.widthad_a(8)) ram
-//         (
-//             .clock_a(clk), .address_a(a[9:2]), .data_a(dout), .wren_a(spr_cs && wr && a[1:0] == l), .q_a(spr_q[l]),
-//             .clock_b(clk), .address_b(spr_ve), .q_b(spr_vq[l])
-//         );
-//     end
-// endgenerate
 generate
     for (l = 0; l < 4; l++) begin : spr_lane
-        assign pr_i[4+l].a_addr = {7'd0, a[9:2]};  assign pr_i[4+l].a_d = dout;  assign pr_i[4+l].a_we = spr_cs && wr && a[1:0] == l;
-        assign pr_i[4+l].b_addr = {7'd0, spr_ve};  assign pr_i[4+l].b_d = 8'd0;  assign pr_i[4+l].b_we = 1'b0;
+        assign pr_i[4+l].a_addr = {8'd0, a[9:2]};  assign pr_i[4+l].a_d = dout;  assign pr_i[4+l].a_we = spr_cs && wr && a[1:0] == l;
+        assign pr_i[4+l].b_addr = {8'd0, spr_ve};  assign pr_i[4+l].b_d = 8'd0;  assign pr_i[4+l].b_we = 1'b0;
         assign spr_q[l] = pr_o[4+l].a_q;  assign spr_vq[l] = pr_o[4+l].b_q;
     end
 endgenerate
 
-// bullet registers = video RAM 00-1F (fine x, width, colour) and 20-3F (y), shadowed for the line builder
 logic [7:0] bl_attr[32], bl_y[32];
 always_ff @(posedge clk) begin
     if (vram_cs && wr && a[9:6] == 4'd0) begin
@@ -254,14 +191,12 @@ always_comb begin
     else if (in_cs)
         case (a[1:0])
             2'd0: din = in0;
-            2'd1: din = {vbl_s0, ~vbl_s0, in1[5:0]};      // two vblank inputs, active high / active low
+            2'd1: din = {vbl_s0, ~vbl_s0, in1[5:0]};
             2'd2: din = dsw1;
             2'd3: din = dsw2;
         endcase
 end
 
-// ------------------------------------------------------------------ sound
-// Zero Hour 8011 sound board (discrete, rtl/boards/zerohour/zerohour_sound.sv); Red Clash's sound board is not modelled
 logic signed [15:0] zh_snd;
 
 zerohour_sound sound
@@ -275,22 +210,17 @@ zerohour_sound sound
 
 assign audio = redclash ? 16'sd0 : zh_snd;
 
-// ------------------------------------------------------------------ PROMs (palette; sprite lookup)
 logic [7:0] prom_pal[32], prom_spr[32];
 always_ff @(posedge clk) begin
     if (prom_wr) begin
         case (prom_a[6:5])
             2'd0: prom_pal[prom_a[4:0]] <= prom_d;
             2'd1: prom_spr[prom_a[4:0]] <= prom_d;
-            default: ;                                   // third PROM: purpose unknown (MAME)
+            default: ;
         endcase
     end
 end
 
-// ------------------------------------------------------------------ stars (zerohour_stars.cpp)
-// The 17-bit LFSR state for logical pixel (x, y) is the field start state stepped (y * 256 + x - offset)
-// mod 65536 times. A stepper chases that index for the pixel on the counters, forwards or backwards
-// (CRT Flip scans the field in reverse), across the field wrap via the precomputed end states.
 logic        st_en = 1'b0, st_cnt = 1'b0;
 logic  [2:0] st_speed;
 logic [15:0] st_off = 16'd0;
@@ -303,7 +233,6 @@ function automatic logic st_fb(input logic [16:0] s);
     st_fb = ~(s[16] ^ s[5]);
 endfunction
 
-// next pixel the star stage will evaluate, in physical raster coordinates
 logic [7:0] nx, ny;
 always_comb begin
     if (vcnt < 9'd32 || vcnt > 9'd223 || (vcnt == 9'd223 && hcnt > 9'd247)) begin nx = 8'd8; ny = 8'd32; end
@@ -316,7 +245,7 @@ wire [7:0]  nly    = crt_flip ? ~ny : ny;
 wire [15:0] want   = {nly, nlx} - st_off;
 wire [15:0] st_dif = want - st_idx;
 wire [16:0] st_start = st_cnt ? 17'h1FC71 : 17'h00000;
-wire [16:0] st_end   = st_cnt ? 17'h00001 : 17'h1FF1C;     // start state stepped 65535 times
+wire [16:0] st_end   = st_cnt ? 17'h00001 : 17'h1FF1C;
 wire        fld_new  = ce_pix && hcnt == 9'd0 && vcnt == 9'd224;
 wire [15:0] off_next = st_off + {12'd0, st_speed, 1'b0} - 16'd9;
 
@@ -325,23 +254,23 @@ always_ff @(posedge clk) begin
         st_en <= 1'b0; st_cnt <= 1'b0; st_off <= 16'd0;
     end
     else begin
-        if (star_cs && wr) begin                          // MAME set_enable(true): offset reset on enabling
+        if (star_cs && wr) begin
             st_en <= 1'b1;
             if (!st_en) st_off <= 16'd0;
         end
-        if (fld_new && st_en) begin                       // MAME update_state, one frame earlier in the raster
+        if (fld_new && st_en) begin
             st_cnt <= ~st_cnt;
             if (st_cnt) begin st_off <= off_next; st <= 17'h00000; end
             else        st <= 17'h1FC71;
             st_idx <= 16'd0;
         end
         else if (st_dif != 16'd0) begin
-            if (!st_dif[15]) begin                        // forward
+            if (!st_dif[15]) begin
                 if (st_idx == 16'hFFFF) st <= st_start;
                 else                    st <= {st[15:0], st_fb(st)};
                 st_idx <= st_idx + 16'd1;
             end
-            else begin                                    // backward
+            else begin
                 if (st_idx == 16'h0000) st <= st_end;
                 else                    st <= {st[6] ? st[0] : ~st[0], st[16:1]};
                 st_idx <= st_idx - 16'd1;
@@ -350,7 +279,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ bullets + sprites: line buffer built a line ahead
 logic [7:0] lb_q[2];
 logic [7:0] lb_wa, lb_wd, lb_ra;
 logic       lb_we = 1'b0;
@@ -358,20 +286,10 @@ logic       lb_clr;
 logic       build_buf = 1'b0;
 wire        disp_buf;
 
-// RAMPOOL-2026-10-27: original line-buffer RAMs below; now pool blocks 8 / 9
-// generate
-//     for (l = 0; l < 2; l++) begin : lbuf
-//         dpram_dc #(.widthad_a(8)) ram
-//         (
-//             .clock_a(clk), .address_a(lb_wa), .data_a(lb_wd), .wren_a(lb_we && build_buf == l),
-//             .clock_b(clk), .address_b(lb_ra), .data_b(8'd0), .wren_b(lb_clr && disp_buf == l), .q_b(lb_q[l])
-//         );
-//     end
-// endgenerate
 generate
     for (l = 0; l < 2; l++) begin : lbuf
-        assign pr_i[8+l].a_addr = {7'd0, lb_wa};  assign pr_i[8+l].a_d = lb_wd;  assign pr_i[8+l].a_we = lb_we && build_buf == l;
-        assign pr_i[8+l].b_addr = {7'd0, lb_ra};  assign pr_i[8+l].b_d = 8'd0;   assign pr_i[8+l].b_we = lb_clr && disp_buf == l;
+        assign pr_i[8+l].a_addr = {8'd0, lb_wa};  assign pr_i[8+l].a_d = lb_wd;  assign pr_i[8+l].a_we = lb_we && build_buf == l;
+        assign pr_i[8+l].b_addr = {8'd0, lb_ra};  assign pr_i[8+l].b_d = 8'd0;   assign pr_i[8+l].b_we = lb_clr && disp_buf == l;
         assign lb_q[l] = pr_o[8+l].b_q;
     end
 endgenerate
@@ -384,30 +302,28 @@ typedef enum logic [3:0] {B_IDLE, B_BUL, B_BPX, B_BNEXT, B_SCAN, B_SCAN_W, B_SCA
 bstate_t     bs = B_IDLE;
 
 wire  [8:0] tgt = (vcnt >= 9'd260) ? vcnt - 9'd260 : vcnt + 9'd2;
-logic [7:0] bl_line;                                     // logical line being built
+logic [7:0] bl_line;
 logic [4:0] b_col;
 logic [8:0] b_x;
-logic [2:0] b_n;                                         // pixels left - 1
+logic [2:0] b_n;
 logic [6:0] b_pen;
 logic [4:0] b_blk, b_lo;
-logic [3:0] b_e;                                         // entry (scan: 0-8)
-logic [7:0] s0, s1, s2, s3;                              // sprite entry bytes
-logic [4:0] s_row;                                       // row inside the sprite
+logic [3:0] b_e;
+logic [7:0] s0, s1, s2, s3;
+logic [4:0] s_row;
 logic [4:0] s_px, s_w;
 logic [63:0] row_a, row_b;
-logic [5:0] s_base;                                      // bit offset of pixel 0 in the row
-logic       s_two;                                       // 16x16 (bank 2): pixels 8-15 come from row b
+logic [5:0] s_base;
+logic       s_two;
 
-// bullet column under test (MAME draw_bullets)
 wire  [7:0] ba     = bl_attr[b_col];
 wire  [8:0] b_sy   = 9'd255 - {1'b0, bl_y[b_col]};
 wire        b_hit  = ({1'b0, bl_line} == b_sy) || ({1'b0, bl_line} + 9'd1 == b_sy);
 wire  [8:0] b_sx0  = {1'b0, b_col, 3'b000} + 9'd8;
 wire  [8:0] b_sx   = (gflip ? 9'd264 - b_sx0 : b_sx0) - {6'd0, ba[5:3]};
-wire  [2:0] b_wm1  = 3'd7 - {ba[7:6], 1'b0};             // width 8 - (attr >> 5 & 6), minus 1
-wire  [6:0] b_col7 = {2'b00, ba[7], 4'h5};               // pen (attr >> 3 & 0x10) | 5
+wire  [2:0] b_wm1  = 3'd7 - {ba[7:6], 1'b0};
+wire  [6:0] b_col7 = {2'b00, ba[7], 4'h5};
 
-// sprite entry decode (MAME draw_sprites): e-sssyyy iiiiiiii --c--ccc xxxxxxxx
 wire [8:0]  l16    = {1'b0, bl_line} + 9'd16;
 wire [4:0]  e_rr   = e_r[4:0];
 wire [9:0]  e_sy   = {2'b00, b_blk, 3'b000} + {7'd0, spr_vq[0][2:0]} - 10'd16;
@@ -416,32 +332,30 @@ wire [1:0]  e_sz   = spr_vq[0][4:3];
 wire [4:0]  e_h    = (e_sz == 2'd1) ? 5'd8 : (e_sz == 2'd2) ? 5'd16 : 5'd24;
 wire        e_vis  = spr_vq[0][7] && e_sz != 2'd0 && !e_r[9] && e_r < {5'd0, e_h};
 
-// row address for the decoded entry (gfx2 viewed as 64-bit rows; 8x8 = MAME gfx3 rearrangement)
 logic [9:0] e_rowa;
 logic [5:0] e_base;
 always_comb begin
     e_rowa = 10'd0; e_base = 6'd0;
     case (e_sz)
-        2'd1: begin                                                    // 8x8: code {bank, i}
+        2'd1: begin
                   e_rowa = {gfxbank, spr_vq[1][7:2], ~e_rr[2:0]};
                   e_base = {spr_vq[1][1:0], 4'b0000};
               end
-        2'd2: if (spr_vq[0][5]) begin                                  // 16x16 spaceships (banks 4 / 5)
+        2'd2: if (spr_vq[0][5]) begin
                   e_rowa = {gfxbank, spr_vq[1][7:3], ~e_rr[3:0]};
                   e_base = spr_vq[1][1] ? 6'd32 : 6'd0;
               end
-              else begin                                               // 16x16 (bank 2)
+              else begin
                   e_rowa = {gfxbank, spr_vq[1][7:4], ~e_rr[3], 1'b0, ~e_rr[2:0]};
                   e_base = 6'd48;
               end
-        default: begin                                                 // 24x24
+        default: begin
                   e_rowa = {gfxbank, spr_vq[1][7:4], 5'd23 - e_rr};
                   e_base = 6'd0;
               end
     endcase
 end
 
-// pixel s_px of the current sprite line
 wire [4:0]  s_pxl  = s_two ? {2'b00, s_px[2:0]} : s_px;
 wire [63:0] s_rowd = (s_two && s_px[3]) ? row_b : row_a;
 wire [5:0]  s_bit  = s_base + {s_pxl, 1'b0};
@@ -452,7 +366,7 @@ assign spr_ve = {b_blk, b_e[2:0]};
 
 always_ff @(posedge clk) begin
     lb_we <= 1'b0;
-    if (ce_pix && hcnt == 9'd311) begin                   // build line vcnt + 2 during line vcnt + 1
+    if (ce_pix && hcnt == 9'd311) begin
         bl_line   <= crt_flip ? ~tgt[7:0] : tgt[7:0];
         build_buf <= vcnt[0];
         b_col     <= 5'd0;
@@ -468,7 +382,7 @@ always_ff @(posedge clk) begin
                     else bs <= B_BNEXT;
                 end
         B_BNEXT: begin
-                    if (b_col == 5'd31) begin                 // sprite blocks that can reach this line
+                    if (b_col == 5'd31) begin
                         b_blk <= l16[8] ? 5'd31 : l16[7:3];
                         b_lo  <= (bl_line < 8'd24) ? 5'd0 : l16[7:3] - 5'd4;
                         b_e   <= 4'd0;
@@ -482,12 +396,10 @@ always_ff @(posedge clk) begin
                     b_n <= b_n - 3'd1;
                     if (b_n == 3'd0) bs <= B_BNEXT;
                 end
-        // count the block's chain: entries until the first with byte 0 == 0
         B_SCAN:   bs <= B_SCAN_W;
         B_SCAN_W: bs <= B_SCAN_R;
         B_SCAN_R: begin
                       if (spr_vq[0] == 8'd0 || b_e == 4'd7) begin
-                          // draw entries (count - 1) down to 0
                           if (spr_vq[0] == 8'd0 && b_e == 4'd0) begin
                               if (b_blk == b_lo) bs <= B_IDLE;
                               else begin b_blk <= b_blk - 5'd1; b_e <= 4'd0; bs <= B_SCAN; end
@@ -511,7 +423,7 @@ always_ff @(posedge clk) begin
                           rom_spr_a <= {2'b00, e_rowa};
                           bs <= B_ROWA_W;
                       end
-                      else begin                              // nothing to draw: B_PIX steps to the next entry
+                      else begin
                           s0  <= 8'd0;
                           s_w <= 5'd0;
                           bs  <= B_PIX;
@@ -527,9 +439,9 @@ always_ff @(posedge clk) begin
         B_ROWB_W: bs <= B_ROWB_R;
         B_ROWB_R: begin row_b <= rom_spr_d; bs <= B_PIX; end
         B_PIX:    begin
-                      if (s0 != 8'd0 && s_pen != 2'd0) begin  // s0 cleared for a skipped entry
+                      if (s0 != 8'd0 && s_pen != 2'd0) begin
                           lb_we <= 1'b1;
-                          lb_wa <= s3 + {3'd0, s_px};          // MAME draws at x and x - 256: 8-bit wrap
+                          lb_wa <= s3 + {3'd0, s_px};
                           lb_wd <= {1'b1, 1'b1, s2[5], s2[2:0], s_pen};
                       end
                       s_px <= s_px + 5'd1;
@@ -546,8 +458,6 @@ always_ff @(posedge clk) begin
     endcase
 end
 
-// ------------------------------------------------------------------ display pipeline
-// S0: counters -> logical coordinates, video RAM address, star test
 wire [7:0] lx = crt_flip ? ~hcnt[7:0] : hcnt[7:0];
 wire [7:0] ly = crt_flip ? ~vcnt[7:0] : vcnt[7:0];
 wire [7:0] tx = gflip ? ~lx : lx;
@@ -558,30 +468,27 @@ wire [7:0] lxp8   = lx + 8'd8;
 wire       st_on  = st_en && st_idx == want && !hbl_s0 && !vbl_s0 &&
                     lxp8[4] == (redclash ? ly[0] : 1'b1) && st[7:0] == 8'hFF && !st_fb(st);
 
-// S1
 logic [7:0] s1_code, s1_lx;
 logic [2:0] s1_tx, s1_ty;
 logic [4:0] s1_tcol, s1_trow;
 logic       s1_star;
 logic [4:0] s1_scol;
 logic       s1_ln, s1_clr;
-// S2
 logic [7:0] chr_lo, s2_lo, s2_hi, s2_lb;
 logic [2:0] s2_tx, s2_color;
 logic       s2_star;
 logic [4:0] s2_scol;
-// S3
-logic [2:0] s3_kind;                                       // 0 black, 1 char pen, 2 sprite pen, 3 star, 4 white
+logic [2:0] s3_kind;
 logic [5:0] s3_val;
-logic [3:0] blk_d[3];                                      // {hbl, vbl, hs, vs} per stage
+logic [3:0] blk_d[3];
 
-assign rom_chr_a = {1'b0, s1_code[6:0], ph[1], s1_ty};     // plane 1 (pen bit 0) then plane 0 (+8)
+assign rom_chr_a = {1'b0, s1_code[6:0], ph[1], s1_ty};
 assign lb_ra     = s1_lx;
-assign lb_clr    = ce_pix && s1_clr;                       // clear on the edge that samples the read, hcnt 0-255 only
+assign lb_clr    = ce_pix && s1_clr;
 assign disp_buf  = s1_ln;
 
 wire [4:0] trow12 = s1_trow + 5'd12;
-wire [2:0] tcolor = (s1_tcol > 5'd27) ? {1'b1, ~trow12[4:3]} : s1_code[6:4];   // score panel: (((row + 12) & 31) >> 3) ^ 7
+wire [2:0] tcolor = (s1_tcol > 5'd27) ? {1'b1, ~trow12[4:3]} : s1_code[6:4];
 wire [1:0] tpen   = {s2_hi[s2_tx], s2_lo[s2_tx]};
 wire [7:0] lbq    = lb_q[disp_buf];
 
@@ -611,7 +518,6 @@ always_ff @(posedge clk) begin
     end
 end
 
-// ------------------------------------------------------------------ palette (MAME zerohour_state::palette)
 wire [7:0] spr_lut = prom_spr[s3_val[4:0]];
 wire [3:0] spr_nib = s3_val[5] ? spr_lut[7:4] : spr_lut[3:0];
 wire [4:0] ctab    = (s3_kind == 3'd2) ? {1'b0, spr_nib[0], spr_nib[1], spr_nib[2], spr_nib[3]}

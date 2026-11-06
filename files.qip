@@ -45,15 +45,14 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/cosmic/panic_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/cosmic/cosmica_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/cosmic/magspot_sound.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/cosmic/nomnlnd_sound.sv
-set_global_assignment -name VHDL_FILE rtl/boards/tms/tms9900.vhd
+set_global_assignment -name VHDL_FILE rtl/cpu/tms9900/tms9900.vhd
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/tms/tms_board.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/boards/tms/cosmicg_sound.sv
-# JT5205-2026-10-25: was set_global_assignment -name SYSTEMVERILOG_FILE rtl/sound/msm5205.sv
 set_global_assignment -name QIP_FILE rtl/sound/jt5205/jt5205.qip
-set_global_assignment -name VHDL_FILE rtl/video/mc6845.vhd
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rodimus/crtc6845sv/crtc6845sv_all.sv
 
-set_global_assignment -name QIP_FILE rtl/cpu/T80/T80.qip
-set_global_assignment -name QIP_FILE rtl/sound/jt89/syn/quartus/jt89_verilog.qip
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rodimus/t80sv/t80sv_all.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/rodimus/sn76489sv/sn76489sv.sv
 
 set_global_assignment -name VERILOG_FILE rtl/mister_custom/pause.v
 set_global_assignment -name VERILOG_FILE rtl/mister_custom/hiscore.v

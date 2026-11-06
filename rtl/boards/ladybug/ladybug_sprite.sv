@@ -49,7 +49,6 @@
 // SystemVerilog translation 2026 (Rodimus) of the MiSTer port by Sorgelig
 
 module ladybug_sprite (
-  // Clock and Reset Interface ------------------------------------------------
   input  logic        clk_20mhz_i,
   input  logic        por_n_i,
   input  logic        res_n_i,
@@ -57,11 +56,9 @@ module ladybug_sprite (
   input  logic        clk_en_10mhz_n_i,
   input  logic        clk_en_5mhz_i,
   input  logic        clk_en_5mhz_n_i,
-  // CPU Interface ------------------------------------------------------------
   input  logic        cs7_n_i,
   input  logic [9:0]  a_i,
   input  logic [7:0]  d_from_cpu_i,
-  // RGB Video Interface ------------------------------------------------------
   input  logic [3:0]  h_i,
   input  logic [3:0]  h_t_i,
   input  logic        hx_i,
@@ -74,22 +71,14 @@ module ladybug_sprite (
   input  logic        blank_flont_i,
   input  logic        blank_i,
   output logic [4:1]  sig_o,
-  // Sprite ROM Interface -----------------------------------------------------
   output logic [11:0] rom_sprite_a_o,
   input  logic [15:0] rom_sprite_d_i,
 
-  // ROMPOOL-2026-10-27: the F4 / C4 PROMs are dispatcher ROM blocks (universal_dispatcher.sv); originals:
-  // // PROM download interface (replaces dn_* ports) ----------------------------
-  // input  logic        prom_f4_wr_i,
-  // input  logic        prom_c4_wr_i,
-  // input  logic [4:0]  prom_a_i,
-  // input  logic [7:0]  prom_d_i,
   output logic [4:0]  prom_f4_a_o,
   input  logic [7:0]  prom_f4_d_i,
   output logic [4:0]  prom_c4_a_o,
   input  logic [7:0]  prom_c4_d_i,
 
-  // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
   output ram_pool_pkg::pram_i_t [4:0] pr_i,
   input  ram_pool_pkg::pram_o_t [4:0] pr_o
 );
@@ -175,9 +164,6 @@ module ladybug_sprite (
 
   logic [15:0] vram_q;
 
-  // ---------------------------------------------------------------------------
-  // The Vertical Counters C5 D5
-  // ---------------------------------------------------------------------------
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : v_cnt_c5_c6_b
     if (!por_n_i) begin
       v_cnt_s <= '0;
@@ -194,9 +180,6 @@ module ladybug_sprite (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Counter J7
-  // ---------------------------------------------------------------------------
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : j7_b
     if (!por_n_i) begin
       j7_s <= '0;
@@ -213,9 +196,6 @@ module ladybug_sprite (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Sprite VRAM Counters A5 A6
-  // ---------------------------------------------------------------------------
   assign ct0_s = v_cnt_a5_a6_s[0];
   assign ct1_s = v_cnt_a5_a6_s[1];
   assign x_s   = v_cnt_a5_a6_s[7:2];
@@ -237,12 +217,6 @@ module ladybug_sprite (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process sprite_ram_ctrl
-  //
-  // Purpose:
-  //   Generates the control signals for the sprite RAM.
-  //
   always_comb begin : sprite_ram_ctrl
     logic cpu_access_v;
 
@@ -259,9 +233,6 @@ module ladybug_sprite (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // The Sprite RAM P5 N5
-  // ---------------------------------------------------------------------------
   ladybug_sprite_ram sprite_ram_b (
     .clk_i    (clk_20mhz_i),
     .clk_en_i (clk_en_5mhz_i),
@@ -274,17 +245,9 @@ module ladybug_sprite (
     .pr_o     (pr_o[0])
   );
 
-  // ---------------------------------------------------------------------------
-  // Process rc_add
-  //
-  // Purpose:
-  //   Implements IC N6 and E6 which add sprite RAM data and Cx signals to
-  //   form RCx bus.
-  //
   always_comb begin : rc_add
     logic [7:0] a_v, b_v, sum_v;
 
-    // prepare the inputs of the adder
     a_v[3:0] = rb_s[3:0];
     a_v[4]   = 1'b1;
     a_v[5]   = 1'b0;
@@ -303,9 +266,6 @@ module ladybug_sprite (
     rc_s  = sum_v;
   end
 
-  // ---------------------------------------------------------------------------
-  // Sprite Control Logic
-  // ---------------------------------------------------------------------------
   ladybug_sprite_ctrl sprite_ctrl_b (
     .clk_20mhz_i     (clk_20mhz_i),
     .clk_en_5mhz_i   (clk_en_5mhz_i),
@@ -337,12 +297,6 @@ module ladybug_sprite (
     .a8_p5_n_o       (a8_p5_n_s)
   );
 
-  // ---------------------------------------------------------------------------
-  // Process misc_seq
-  //
-  // Purpose:
-  //   Implements several sequential elements.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : misc_seq
     if (!por_n_i) begin
       clk_5mhz_n_q <= 1'b0;
@@ -353,7 +307,6 @@ module ladybug_sprite (
       ck_inh_n_q   <= 1'b1;
     end
     else begin
-      // Turn clk_5mhz_n into clock waveform ----------------------------------
       if (clk_en_5mhz_n_i == 1'b1) begin
         clk_5mhz_n_q <= 1'b1;
       end
@@ -361,42 +314,28 @@ module ladybug_sprite (
         clk_5mhz_n_q <= 1'b0;
       end
 
-      // 8-Bit Register M6 ----------------------------------------------------
       if (clk_en_5ck_n_s == 1'b1) begin
         mb_q <= rb_s[1:0];
         ma_q <= rb_s[7:2];
       end
 
-      // 8-Bit Register P6 ----------------------------------------------------
       if (clk_en_e7_3_s == 1'b1) begin
-        // these are inverted based on mc_q(4)
         mc_q[3:0] <= rc_s[3:0];
-        // inverts sprites horizontally
         mc_q[4]   <= rb_s[4];
-        // inverts sprites vertically
         mc_q[5]   <= rb_s[5];
-        //
         mc_q[6]   <= rb_s[6];
       end
 
-      // 6-Bit Register B6 ----------------------------------------------------
       if (clk_en_6ck_n_s == 1'b1) begin
         cl_q <= rb_s[4:0];
       end
 
-      // Flip-Flop H8 ---------------------------------------------------------
       if (clk_en_10mhz_n_i == 1'b1) begin
         ck_inh_n_q <= ~ck_inh_s;
       end
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process ma_vec
-  //
-  // Purpose:
-  //   Build the ma_s vector.
-  //
   always_comb begin : ma_vec
     ma_s[11:6] = ma_q;
 
@@ -415,25 +354,13 @@ module ladybug_sprite (
     ma_s[0]    = mc_q[5] ^ j7_s[0];
   end
 
-  // ---------------------------------------------------------------------------
-  // Process df_mux
-  //
-  // Purpose:
-  //   Builds the multiplexed data from Sprite ROM.
-  //   Two-stage multiplexer:
-  //     1) ROM data to DFx: 16->8
-  //     2) DF to input for shift register: 8->8
-  //        This is actually a scrambler.
-  //
   always_comb begin : df_mux
     logic [7:0] df_v;
 
     if (cl_q[4] == 1'b0) begin
-      // ROM L7
       df_v = rom_sprite_d_i[7:0];
     end
     else begin
-      // ROM M7
       df_v = rom_sprite_d_i[15:8];
     end
 
@@ -442,7 +369,6 @@ module ladybug_sprite (
       df_muxed_s[1] = df_v[3];
       df_muxed_s[2] = df_v[5];
       df_muxed_s[3] = df_v[7];
-      //
       df_muxed_s[4] = df_v[0];
       df_muxed_s[5] = df_v[2];
       df_muxed_s[6] = df_v[4];
@@ -453,7 +379,6 @@ module ladybug_sprite (
       df_muxed_s[1] = df_v[5];
       df_muxed_s[2] = df_v[3];
       df_muxed_s[3] = df_v[1];
-      //
       df_muxed_s[4] = df_v[6];
       df_muxed_s[5] = df_v[4];
       df_muxed_s[6] = df_v[2];
@@ -461,9 +386,6 @@ module ladybug_sprite (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // The Two 8-Bit Shift Registers H6 J6
-  // ---------------------------------------------------------------------------
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : shifters_h6_j6
     if (!por_n_i) begin
       h6_shifter <= '0;
@@ -486,66 +408,24 @@ module ladybug_sprite (
   assign qh1_s = h6_shifter[3];
   assign qh2_s = j6_shifter[3];
 
-  // ---------------------------------------------------------------------------
-  // Sprite Look-up PROM F4
-  // ---------------------------------------------------------------------------
   assign lu_a_s[4:2] = cl_q[2:0];
   assign lu_a_s[1]   = qh2_s;
   assign lu_a_s[0]   = qh1_s;
 
-  // ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block (read port exported)
-  //   logic [7:0] prom_F4_qa_unused_s;
-  //   dpram_dc #(.widthad_a(5), .width_a(8)) prom_F4 (
-  //     .clock_a   (clk_20mhz_i),
-  //     .address_a (prom_a_i),
-  //     .data_a    (prom_d_i),
-  //     .wren_a    (prom_f4_wr_i),
-  //     .q_a       (prom_F4_qa_unused_s),
-  //
-  //     .clock_b   (clk_20mhz_i),
-  //     .address_b (lu_a_s),
-  //     .data_b    (8'd0),
-  //     .wren_b    (1'b0),
-  //     .q_b       (lu_d_s)
-  //   );
   assign prom_f4_a_o = lu_a_s;
   assign lu_d_s       = prom_f4_d_i;
 
   assign lu_d_mux_s = (cl_q[3] == 1'b0) ? lu_d_s[3:0] : lu_d_s[7:4];
 
-  // ---------------------------------------------------------------------------
-  // Sprite Control Look-up PROM C4
-  // ---------------------------------------------------------------------------
   assign ctrl_lu_a_s[0] = 1'b1;
   assign ctrl_lu_a_s[1] = hx_i;
   assign ctrl_lu_a_s[2] = clk_5mhz_n_q;
   assign ctrl_lu_a_s[3] = h_i[0];
   assign ctrl_lu_a_s[4] = h_i[1];
 
-  // ROMPOOL-2026-10-27: original below; the PROM is now a dispatcher ROM block (read port exported)
-  //   logic [7:0] prom_C4_qa_unused_s;
-  //   dpram_dc #(.widthad_a(5), .width_a(8)) prom_C4 (
-  //     .clock_a   (clk_20mhz_i),
-  //     .address_a (prom_a_i),
-  //     .data_a    (prom_d_i),
-  //     .wren_a    (prom_c4_wr_i),
-  //     .q_a       (prom_C4_qa_unused_s),
-  //
-  //     .clock_b   (clk_20mhz_i),
-  //     .address_b (ctrl_lu_a_s),
-  //     .data_b    (8'd0),
-  //     .wren_b    (1'b0),
-  //     .q_b       (ctrl_lu_d_s)
-  //   );
   assign prom_c4_a_o  = ctrl_lu_a_s;
   assign ctrl_lu_d_s  = prom_c4_d_i;
 
-  // ---------------------------------------------------------------------------
-  // Process ctrl_lu_seq
-  //
-  // Purpose:
-  //   Registers output of Sprite Control Look-up PROM.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : ctrl_lu_seq
     if (!por_n_i) begin
       ctrl_lu_q <= '0;
@@ -555,50 +435,29 @@ module ladybug_sprite (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process ctrl_lu_comb
-  //
-  // Purpose:
-  //   Combinational logic for the sprite control registers.
-  //
-  // NOTE(translation): the VHDL process reads ctrl_lu_q_d_s after assigning it
-  // (signal semantics: converges to the new value via the sensitivity list).
-  // The blocking assignments here read back the new value directly, which is the
-  // same settled result.
   always_comb begin : ctrl_lu_comb
-    // default assignments
     ctrl_lu_q_d_s = ctrl_lu_q;
     clk_en_eck_s  = 1'b0;
     clk_en_rd_s   = 1'b0;
 
-    // register control
     if (clk_en_10mhz_i == 1'b1) begin
       ctrl_lu_q_d_s  = ctrl_lu_d_s[5:0];
 
       if (ctrl_lu_q[1] == 1'b0 && ctrl_lu_q_d_s[1] == 1'b1) begin
-        // detect rising edge on ctrl_lu_q(1)
         clk_en_eck_s = 1'b1;
       end
 
       if (ctrl_lu_q[6] == 1'b0 && ctrl_lu_q_d_s[6] == 1'b1) begin
-        // detect rising edge on ctrl_lu_q(6)
         clk_en_rd_s  = 1'b1;
       end
     end
   end
-  //
   assign shift_oc_n_s = ~(ctrl_lu_q[1] & res_n_i);
   assign ck_inh_s     = ctrl_lu_q[2];
   assign cr_mux_sel_s = ctrl_lu_q[3];
   assign vram_we_n_s  = ctrl_lu_q[4];
   assign rs_enable_s  = ctrl_lu_q[5];
 
-  // ---------------------------------------------------------------------------
-  // Process ca_seq
-  //
-  // Purpose:
-  //   Implements B5, the register that holds the CS flip-flops.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : ca_seq
     if (!por_n_i) begin
       ca_q <= '0;
@@ -609,55 +468,37 @@ module ladybug_sprite (
       end
     end
   end
-  //
   assign ca6_s = ca_q[1];
   assign ca7_s = ca_q[2];
   assign ca8_s = ca_q[3];
 
-  // ---------------------------------------------------------------------------
-  // Process vram_mux
-  //
-  // Purpose:
-  //   Generates the VRAM address CRx.
-  //   It implements chips D5, C5 and B5.
-  //
   always_comb begin : vram_mux
     if (cr_mux_sel_s == 1'b0) begin
-      // D5
       cr_s[0] = h_i[2];
       cr_s[1] = h_i[3];
       cr_s[2] = h_t_i[0];
       cr_s[3] = h_t_i[1];
-      // C5
       cr_s[4] = h_t_i[2];
       cr_s[5] = h_t_i[3];
       cr_s[6] = v_i[0];
       cr_s[7] = v_i[1];
-      // B5
       cr_s[8] = v_i[2];
       cr_s[9] = v_i[3];
     end
     else begin
-      // D5
       cr_s[0] = x_s[0];
       cr_s[1] = x_s[1];
       cr_s[2] = x_s[2];
       cr_s[3] = x_s[3];
-      // C5
       cr_s[4] = x_s[4];
       cr_s[5] = x_s[5];
       cr_s[6] = ca6_s;
       cr_s[7] = ca7_s;
-      // B5
       cr_s[8] = ca8_s;
       cr_s[9] = ~v_i[3];
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Shift Registers
-  // ---------------------------------------------------------------------------
-  // NOTE(translation): rs_int has no reset in the VHDL (only rd_shift_int is reset).
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : shifters_a7_a8_d7_d8_f8
     if (!por_n_i) begin
       rd_shift_int <= '1;
@@ -676,18 +517,11 @@ module ladybug_sprite (
 
   assign rd_shift_s = (shift_oc_n_s == 1'b0) ? rd_shift_int : '1;
   assign rs_s       = (shift_oc_n_s == 1'b0) ? rs_int       : '1;
-//assign rs_n_s[3] = ~rs_s[3] | ~rs_enable_s;
-//assign rs_n_s[2] = ~rs_s[2] | ~rs_enable_s;
-//assign rs_n_s[1] = ~rs_s[1] | ~rs_enable_s;
-//assign rs_n_s[0] = ~rs_s[0] | ~rs_enable_s;
   assign rs_n_s[3] = rs_s[3] & rs_enable_s;
   assign rs_n_s[2] = rs_s[2] & rs_enable_s;
   assign rs_n_s[1] = rs_s[1] & rs_enable_s;
   assign rs_n_s[0] = rs_s[0] & rs_enable_s;
 
-  // ---------------------------------------------------------------------------
-  // Sprite VRAM
-  // ---------------------------------------------------------------------------
   assign vram_a6_in_s[0] = rd_shift_s[ 0];
   assign vram_a6_in_s[1] = rd_shift_s[ 4];
   assign vram_a6_in_s[2] = rd_shift_s[ 8];
@@ -703,7 +537,6 @@ module ladybug_sprite (
     .pr_i     (pr_i[1]),
     .pr_o     (pr_o[1])
   );
-  //
   assign vram_b6_in_s[0] = rd_shift_s[ 1];
   assign vram_b6_in_s[1] = rd_shift_s[ 5];
   assign vram_b6_in_s[2] = rd_shift_s[ 9];
@@ -719,7 +552,6 @@ module ladybug_sprite (
     .pr_i     (pr_i[2]),
     .pr_o     (pr_o[2])
   );
-  //
   assign vram_c6_in_s[0] = rd_shift_s[ 2];
   assign vram_c6_in_s[1] = rd_shift_s[ 6];
   assign vram_c6_in_s[2] = rd_shift_s[10];
@@ -735,7 +567,6 @@ module ladybug_sprite (
     .pr_i     (pr_i[3]),
     .pr_o     (pr_o[3])
   );
-  //
   assign vram_d6_in_s[0] = rd_shift_s[ 3];
   assign vram_d6_in_s[1] = rd_shift_s[ 7];
   assign vram_d6_in_s[2] = rd_shift_s[11];
@@ -751,65 +582,45 @@ module ladybug_sprite (
     .pr_i     (pr_i[4]),
     .pr_o     (pr_o[4])
   );
-  // Remap VRAM data outputs to the complete bus ------------------------------
   assign rd_vram_s[15] = vram_d6_out_s[3] | rs_n_s[3];
   assign rd_vram_s[14] = vram_c6_out_s[3] | rs_n_s[2];
   assign rd_vram_s[13] = vram_b6_out_s[3] | rs_n_s[1];
   assign rd_vram_s[12] = vram_a6_out_s[3] | rs_n_s[0];
-  //
   assign rd_vram_s[11] = vram_d6_out_s[2] | rs_n_s[3];
   assign rd_vram_s[10] = vram_c6_out_s[2] | rs_n_s[2];
   assign rd_vram_s[ 9] = vram_b6_out_s[2] | rs_n_s[1];
   assign rd_vram_s[ 8] = vram_a6_out_s[2] | rs_n_s[0];
-  //
   assign rd_vram_s[ 7] = vram_d6_out_s[1] | rs_n_s[3];
   assign rd_vram_s[ 6] = vram_c6_out_s[1] | rs_n_s[2];
   assign rd_vram_s[ 5] = vram_b6_out_s[1] | rs_n_s[1];
   assign rd_vram_s[ 4] = vram_a6_out_s[1] | rs_n_s[0];
-  //
   assign rd_vram_s[ 3] = vram_d6_out_s[0] | rs_n_s[3];
   assign rd_vram_s[ 2] = vram_c6_out_s[0] | rs_n_s[2];
   assign rd_vram_s[ 1] = vram_b6_out_s[0] | rs_n_s[1];
   assign rd_vram_s[ 0] = vram_a6_out_s[0] | rs_n_s[0];
 
-  // ---------------------------------------------------------------------------
-  // Process rd_seq
-  //
-  // Purpose:
-  //   Implements the registers saving the RDx bus.
-  //
   always_ff @(posedge clk_20mhz_i or negedge por_n_i) begin : rd_seq
     if (!por_n_i) begin
       vram_q <= '0;
     end
     else begin
       if (blank_flont_i == 1'b0) begin
-        // pseudo-asynchronous clear
         vram_q   <= '0;
       end
       else if (clk_en_rd_s == 1'b1) begin
         if (shift_oc_n_s == 1'b0) begin
-          // take data from shift registers
           vram_q <= rd_shift_s;
         end
         else begin
-          // take data from VRAM
           vram_q <= rd_vram_s;
         end
       end
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Process sig_mux
-  //
-  // Purpose:
-  //   Multiplexes the saved VRAM data to generate the four SIG outputs.
-  //
   always_comb begin : sig_mux
     logic [1:0] vec_v;
 
-    // default assignment
     sig_o = '0;
 
     vec_v = {h_i[1], h_i[0]};
@@ -845,9 +656,6 @@ module ladybug_sprite (
     end
   end
 
-  // ---------------------------------------------------------------------------
-  // Output Mapping
-  // ---------------------------------------------------------------------------
   assign rom_sprite_a_o = ma_s;
 
 endmodule

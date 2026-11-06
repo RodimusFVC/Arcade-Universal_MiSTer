@@ -25,7 +25,7 @@
     <joystick>2-way</joystick>
     <special_controls></special_controls>
     <num_buttons>1</num_buttons>
-    <buttons names="Accelerate,Not Used,Not Used,Not Used,Coin,Start 1P,Start 2P,Pause,Not Used,Not Used,Not Used" default="A,B,X,Y,Select,Start,R,L"/>
+    <buttons names="Accelerate,-,-,-,Coin,Start 1P,Start 2P,Pause,-,-,-" default="A,Select,Start,R,L"/>
 
     <switches default="A4,FA">
         <dip name="Coinage" bits="0,1" ids="2C/1C,1C/1C,1 Coin/1 Credit (again),1C/2C" values="2,0,3,1"/>
@@ -35,7 +35,7 @@
         <dip name="Language" bits="10" ids="English,Japanese"/>
     </switches>
 
-    <!-- Index 0: MAME regions, layout in rtl/universal_board.sv -->
+    <!-- Index 0: ROM -->
     <rom index="0" md5="none" zip="getaway.zip">
         <part crc="d7596a61" name="3901.a16"/>
         <part crc="ad43edff" name="3903.a15"/>
@@ -46,7 +46,7 @@
         <part crc="fd878838" name="3906.f8"/>
     </rom>
 
-    <!-- Index 1: board variant, flags, input map (see Arcade-Universal.sv) -->
+    <!-- Index 1: Config -->
     <rom index="1">
         <part>
             13 10 00 00 FF FF FF A4 FA FF 80 80 80 00 01 80

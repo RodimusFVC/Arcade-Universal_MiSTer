@@ -1,40 +1,20 @@
-//============================================================================
-//
-//  Universal Cosmic Alien sound board (7910-S)
 //  Copyright (C) 2026 Rodimus
-//
-//  Effect structure from the Cosmic Alien manual sound schematic (p.26): pins 1-12 = 7000-700B (data != 0),
-//  pin 13 = the coin switch. Pitches and time constants fitted to recordings of the board (MAME 'cosmica'
-//  samples), as for rtl/boards/cosmic/panic_sound.sv:
-//    background (while enabled): IC5b ~11 Hz samples the noise onto the IC5a 556 CV -> random pitch steps
-//    dive A (pin 1): 3150 Hz, falling to ~2300 Hz after 1.5 s of hold
-//    dive B (pin 3, select G.S.B / M.S.B / L.S.B on pins 4-6): one-shot sweep 5.6 kHz -> 700 Hz (tau 0.69 s);
-//      L.S.B adds noise FM, G.S.B + L.S.B adds a 7 Hz chop (IC11b)
-//    fire (pin 7): high noise burst; explosions: pin 8 loud (low noise, 2.3 s), pin 9 small (0.26 s) per the
-//      schematic labels (MAME's cosmica_sound_output_w has offsets 7 / 8 the other way round)
-//    extend (pin 10) / coin (pin 13): IC7b 556 tone, 1026 Hz 25 % pulse (as measured on the Space Panic copy
-//      of the same circuit)
-//    pin 12 sound enable: IC1 shorts the mix bus while low
-//  Engine as rtl/boards/zerohour/zerohour_sound.sv (32 clocks per step, v += (x * a) >> 32); envelopes 1.0 = 2^24.
-//
-//============================================================================
 
 module cosmica_sound
 (
-    input  logic               clk,            // 19.656 MHz
+    input  logic               clk,
     input  logic               reset,
-    input  logic        [11:0] trig,           // 7000-700B
-    input  logic               coin,           // coin switch, active high
+    input  logic        [11:0] trig,
+    input  logic               coin,
     output logic signed [15:0] audio,
 
-    // MULPOOL-2026-10-23: multiplier pool in cosmic_board.sv (shared by the four Cosmic sound boards)
-    output logic        [31:0]       mp_ea,    // engine: s32 x s28
+    output logic        [31:0]       mp_ea,
     output logic        [27:0]       mp_eb,
     input  logic        [59:0]       mp_ep,
-    output logic [3:0]  [31:0]       mp_xa,    // s32 x s32
+    output logic [3:0]  [31:0]       mp_xa,
     output logic [3:0]  [31:0]       mp_xb,
     input  logic [3:0]  [63:0]       mp_xp,
-    output logic [9:0]  [33:0]       mp_wa,    // s34 x s17
+    output logic [9:0]  [33:0]       mp_wa,
     output logic [9:0]  [16:0]       mp_wb,
     input  logic [9:0]  [50:0]       mp_wp
 );
@@ -50,14 +30,14 @@ localparam logic [26:0] A_LP800  = 27'd35003284;
 localparam logic [26:0] A_LP1K2  = 27'd52397804;
 localparam logic [26:0] A_LP3K   = 27'd129798370;
 localparam logic [26:0] A_HPF    = 27'd873938;
-localparam logic [26:0] A_15MS   = 27'd466140;     // background CV settling (C21)
+localparam logic [26:0] A_15MS   = 27'd466140;
 
-localparam logic [31:0] INC_DA    = 32'd22025473;   // 3150 Hz
-localparam logic [31:0] INC_DA1   = 32'd16082092;   // 2300 Hz
-localparam logic [31:0] INC_DB0   = 32'd39156397;   // 5600 Hz
-localparam logic [31:0] INC_DB1   = 32'd4894550;    // 700 Hz
-localparam logic [31:0] INC_COIN  = 32'd7174011;    // 1026 Hz
-localparam logic [31:0] INC_BGMIN = 32'd3146496;    // 450 Hz
+localparam logic [31:0] INC_DA    = 32'd22025473;
+localparam logic [31:0] INC_DA1   = 32'd16082092;
+localparam logic [31:0] INC_DB0   = 32'd39156397;
+localparam logic [31:0] INC_DB1   = 32'd4894550;
+localparam logic [31:0] INC_COIN  = 32'd7174011;
+localparam logic [31:0] INC_BGMIN = 32'd3146496;
 
 localparam logic [20:0] T_DA1  = 21'd921375;
 localparam logic [20:0] T_DB   = 21'd1105650;
@@ -73,7 +53,6 @@ localparam logic signed [31:0] ONE = 32'sd16777216;
 wire dive_a = trig[0], dive_b = trig[2], gsb = trig[3], msb = trig[4], lsb = trig[5], fire = trig[6];
 wire lexp = trig[7], sexp = trig[8], ext = trig[9], enable = trig[11];
 
-// ------------------------------------------------------------------ engine
 localparam logic [4:0] E_DA = 5'd0, P_DA = 5'd1, E_DB = 5'd2, P_DB = 5'd3, E_FIRE = 5'd4, E_SEXP = 5'd5, E_LEXP = 5'd6,
                        E_COIN = 5'd7, N_LP8 = 5'd8, N_LP12 = 5'd9, N_LP3 = 5'd10, HPF = 5'd11, P_BG = 5'd12;
 logic signed [31:0] v[32];
@@ -84,28 +63,11 @@ always_ff @(posedge clk) sl <= sl + 5'd1;
 logic [20:0] t_da = 0, t_db = 0, t_lfo = 0, t_fire = 0, t_sexp = 0, t_lexp = 0, t_coin = 0, t_bg = 0;
 logic        da_d = 0, db_d = 0, fire_d = 0, sexp_d = 0, lexp_d = 0, coin_d = 0;
 logic        db_set = 1'b0, da_set = 1'b0;
-logic  [2:0] db_sel = 3'd0;                                       // {G, M, L} latched at the trigger
+logic  [2:0] db_sel = 3'd0;
 logic [31:0] ph_da = 0, ph_db = 0, ph_coin = 0, ph_bg = 0, inc_bg = INC_BGMIN;
 logic [31:0] nz = 32'h1;
 wire         white_p = nz[0];
 
-// ------------------------------------------------------------------ voices -> mix
-// MULPOOL-2026-10-23: originals below; the products now come from the shared pool (same bits kept, so bit-exact)
-// function automatic logic signed [31:0] sq(input logic s, input logic signed [31:0] env, input logic [14:0] amp);
-//     logic signed [45:0] p, t, e;
-//     e = {{14{env[31]}}, env};
-//     p = (s ? e : -e) * $signed({1'b0, amp});
-//     t = p >>> 24;
-//     sq = t[31:0];
-// endfunction
-// function automatic logic signed [31:0] nzv(input logic signed [31:0] n, input logic signed [31:0] env, input logic [14:0] amp);
-//     logic signed [63:0] p;
-//     logic signed [31:0] q;
-//     p = n * env;
-//     q = p[55:24];
-//     nzv = sq(1'b1, q, amp);
-// endfunction
-// sq() kept local where its operand comes from a pooled product (nzv): a path may cross only one pooled multiplier
 function automatic logic signed [31:0] sq(input logic s, input logic signed [31:0] env, input logic [14:0] amp);
     logic signed [45:0] p, t, e;
     e = {{14{env[31]}}, env};
@@ -113,31 +75,24 @@ function automatic logic signed [31:0] sq(input logic s, input logic signed [31:
     t = p >>> 24;
     sq = t[31:0];
 endfunction
-function automatic logic signed [33:0] sq_a(input logic s, input logic signed [31:0] env);   // sq() operand: +/- env
+function automatic logic signed [33:0] sq_a(input logic s, input logic signed [31:0] env);
     logic signed [33:0] e;
     e = {{2{env[31]}}, env};
     sq_a = s ? e : -e;
 endfunction
-function automatic logic signed [31:0] sq_r(input logic [50:0] pp);    // sq() result: low 46 bits of the product >>> 24
+function automatic logic signed [31:0] sq_r(input logic [50:0] pp);
     logic signed [45:0] p, t;
     p = pp[45:0];
     t = p >>> 24;
     sq_r = t[31:0];
 endfunction
 
-wire signed [31:0] n_hp  = (white_p ? ONE : -ONE) - v[N_LP3];       // above ~3 kHz
-wire signed [31:0] n_mid = (v[N_LP12] <<< 3) + (v[N_LP12] <<< 2);   // ~1.2 kHz low-pass x 12
-wire signed [31:0] n_low = (v[N_LP8] <<< 4) - (v[N_LP8] <<< 1);     // ~800 Hz low-pass x 14
+wire signed [31:0] n_hp  = (white_p ? ONE : -ONE) - v[N_LP3];
+wire signed [31:0] n_mid = (v[N_LP12] <<< 3) + (v[N_LP12] <<< 2);
+wire signed [31:0] n_low = (v[N_LP8] <<< 4) - (v[N_LP8] <<< 1);
 wire               db_chop = db_sel[2] && db_sel[0] && t_lfo >= (T_LFO >> 1);
 wire signed [31:0] db_env  = db_chop ? 32'sd0 : v[E_DB];
 
-// MULPOOL-2026-10-23: original mix below
-// wire signed [31:0] mix_v = sq(ph_bg[31], ONE, 15'd1000)
-//                          + sq(ph_da[31], v[E_DA], 15'd2600) + nzv(n_hp, v[E_DA], 15'd1200) + sq(ph_db[31], db_env, 15'd2200)
-//                          + sq(ph_coin[31:30] == 2'd0, v[E_COIN], 15'd5000)
-//                          + nzv(n_hp, v[E_FIRE], 15'd2400) + nzv(n_mid, v[E_SEXP], 15'd2400)
-//                          + nzv(n_low, v[E_LEXP], 15'd4000);
-// nzv(n, env, amp) = sq(1, (n * env)[55:24], amp): X slots 0-3 (pooled), then a local sq(); W 4-9 unused
 assign mp_xa[0] = n_hp;   assign mp_xb[0] = v[E_DA];
 assign mp_xa[1] = n_hp;   assign mp_xb[1] = v[E_FIRE];
 assign mp_xa[2] = n_mid;  assign mp_xb[2] = v[E_SEXP];
@@ -155,7 +110,7 @@ assign mp_wa[9]  = 34'd0;  assign mp_wb[9]  = 17'd0;
 wire signed [31:0] mix_v = sq_r(mp_wp[0]) + sq_r(mp_wp[1]) + sq_r(mp_wp[2]) + sq_r(mp_wp[3])
                          + sq(1'b1, mp_xp[0][55:24], 15'd1200) + sq(1'b1, mp_xp[1][55:24], 15'd2400)
                          + sq(1'b1, mp_xp[2][55:24], 15'd2400) + sq(1'b1, mp_xp[3][55:24], 15'd4000);
-wire signed [31:0] mix_s = enable ? (mix_v <<< 8) : 32'sd0;         // enable low: IC1 shorts the mix bus
+wire signed [31:0] mix_s = enable ? (mix_v <<< 8) : 32'sd0;
 
 logic signed [31:0] x;
 logic        [26:0] a;
@@ -189,8 +144,6 @@ assign mp_ea = p_x;
 assign mp_eb = {1'b0, p_a};
 always_ff @(posedge clk) begin
     p_x <= x; p_a <= a; p_n <= nd;
-    // MULPOOL-2026-10-23: original
-    // w_p <= p_x * $signed({1'b0, p_a});
     w_p <= mp_ep[58:0];
     w_n <= p_n;
     if (reset) begin
@@ -202,9 +155,8 @@ always_ff @(posedge clk) begin
     else if (w_n < 5'd13) v[w_n] <= w_sum;
 end
 
-// ------------------------------------------------------------------ oscillators, timers (once per step)
 wire [31:0] db_inc = v[P_DB];
-wire [31:0] db_fm  = (db_sel[0] ? (nz[1] ? db_inc + (db_inc >> 2) : db_inc - (db_inc >> 2)) : db_inc);   // L.S.B: noise FM
+wire [31:0] db_fm  = (db_sel[0] ? (nz[1] ? db_inc + (db_inc >> 2) : db_inc - (db_inc >> 2)) : db_inc);
 
 always_ff @(posedge clk) begin
     if (reset) begin
@@ -220,7 +172,6 @@ always_ff @(posedge clk) begin
         ph_coin <= ph_coin + INC_COIN;
         ph_bg   <= ph_bg + v[P_BG];
 
-        // background: new random pitch about 11 times a second (noise sampled onto the 556 CV)
         if (t_bg == 0) begin t_bg <= T_BG; inc_bg <= INC_BGMIN + {7'd0, nz[24:0]}; end
         else t_bg <= t_bg - 1'd1;
 

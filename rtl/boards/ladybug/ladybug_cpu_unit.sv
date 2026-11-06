@@ -1,26 +1,9 @@
-//============================================================================
-//
-//  Lady Bug CPU unit (Universal 8106-A2 CPU board)
+//  Based on MAME sraider.cpp (Frank Palazzolo, BSD-3-Clause)
 //  Copyright (C) 2026 Rodimus
-//
-//  Structure from Arnim Laeuger's ladybug_cpu_unit.vhd (FPGA Lady Bug, 2005)
-//  and its MiSTer port by Sorgelig. The Z80 is T80pa with real rising/falling
-//  half-cycles at 4 MHz (the old port used a patched T80a whose half-cycle
-//  was one 20 MHz clock).
-//
-//  Dorodon: opcode fetches (M1) go through the bp3/bp4 PROM pair (MAME
-//  init_dorodon); every other set fetches opcodes undecoded.
-//
-//  board_8203_i (Space Raider / Mrs. Dynamite, MAME sraider.cpp cpu1_map):
-//  8000-9FFF I/O (x0-x3 IN0/IN1/DSW0/DSW1, x5 PAL protection 0x3E, x6/x7 sound
-//  latches low/high), no flip latch / sound chips at A000-CFFF, IRQ on vblank
-//  held until acknowledged (MAME irq0_line_hold), no coin chutes.
-//
-//============================================================================
 
 module ladybug_cpu_unit
 (
-    output chip_pool_pkg::z80pa_i_t z80pa_0_i,   // shared Z80 (rtl/universal_dispatcher.sv)
+    output chip_pool_pkg::z80pa_i_t z80pa_0_i,
     input  chip_pool_pkg::z80pa_o_t z80pa_0_o,
     input  logic        clk_20mhz_i,
     input  logic        cpu_cen_p_i,
@@ -35,13 +18,13 @@ module ladybug_cpu_unit
 
     output logic [14:0] rom_cpu_a_o,
     input  logic  [7:0] rom_cpu_d_i,
-    output logic  [7:0] dec_a_o,        // decryption PROM address = fetched byte
+    output logic  [7:0] dec_a_o,
     input  logic  [7:0] dec_d_i,
 
     input  logic        sound_wait_n_i,
     input  logic        wait_n_i,
-    input  logic        right_chute_i,  // NMI (MAME coin 1)
-    input  logic        left_chute_i,   // IRQ (MAME coin 2)
+    input  logic        right_chute_i,
+    input  logic        left_chute_i,
     input  logic  [7:0] gpio_in0_i,
     input  logic  [7:0] gpio_in1_i,
     input  logic  [7:0] gpio_in2_i,
@@ -64,7 +47,6 @@ module ladybug_cpu_unit
     input  logic  [7:0] hs_data_in,
     input  logic        hs_write,
 
-    // RAMPOOL-2026-10-27: board RAM pool blocks (rtl/universal_dispatcher.sv); local index = RAM within this module
     output ram_pool_pkg::pram_i_t pr_i,
     input  ram_pool_pkg::pram_o_t pr_o
 );
@@ -81,7 +63,6 @@ logic        ram_cpu_cs_n_s;
 
 assign wait_n_s = sound_wait_n_i & wait_n_i;
 
-// the shared T80pa in rtl/universal_dispatcher.sv
 assign z80pa_0_i.reset_n = res_n_i;
 assign z80pa_0_i.cen_p   = cpu_cen_p_i & ~pause_i;
 assign z80pa_0_i.cen_n   = cpu_cen_n_i & ~pause_i;
@@ -157,7 +138,6 @@ ladybug_chutes coin_chutes_b
     .int_n_o       (chute_int_n_s)
 );
 
-// 8203 board: vblank IRQ, cleared by the interrupt acknowledge cycle
 logic vbl_d = 1'b0, vbl_int_n = 1'b1;
 always_ff @(posedge clk_20mhz_i) begin
     vbl_d <= vblank_i;
@@ -169,7 +149,6 @@ end
 assign int_n_s = board_8203_i ? vbl_int_n : chute_int_n_s;
 assign nmi_n_s = board_8203_i ? 1'b1      : chute_nmi_n_s;
 
-// 8203 board I/O block at 8000-9FFF
 wire io8203_s = board_8203_i && !(cs_n_s[8] && cs_n_s[9]);
 logic [7:0] d_from_io8203_s;
 always_comb begin
@@ -180,7 +159,8 @@ always_comb begin
             3'd1: d_from_io8203_s = gpio_in1_i;
             3'd2: d_from_io8203_s = gpio_in2_i;
             3'd3: d_from_io8203_s = gpio_in3_i;
-            3'd5: d_from_io8203_s = 8'h3E;          // PAL K2: must read X011111X (MAME protection_r)
+            3'd5: d_from_io8203_s = 8'h3E;
+            // PAL K2 protection: must read X011111X
             default: ;
         endcase
 end
@@ -196,7 +176,6 @@ always_ff @(posedge clk_20mhz_i) begin
     end
 end
 
-// Opcode decryption on read (Dorodon only)
 assign dec_a_o      = rom_cpu_d_i;
 assign d_rom_mux_s  = (decrypt_en_i && !m1_n_s) ? dec_d_i : rom_cpu_d_i;
 assign d_from_rom_s = (cs_n_s[5:0] != 6'b111111) ? d_rom_mux_s : 8'hFF;
